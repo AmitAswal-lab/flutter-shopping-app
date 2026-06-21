@@ -1,17 +1,126 @@
-# shopping_app
+# Shopping App
 
-A new Flutter project.
+A Flutter shopping app built as a learning project for app development, UI structure, navigation, and state management with the `provider` package.
 
-## Getting Started
+The goal of this project is to build a realistic shopping flow step by step while keeping the codebase lean enough to understand clearly.
 
-This project is a starting point for a Flutter application.
+## Current Progress
 
-A few resources to get you started if this is your first Flutter project:
+The app currently includes:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- Product listing screen with a responsive product card grid
+- Local product image assets
+- Product detail screen
+- Quantity selector on the product detail screen
+- Add-to-cart behavior from both the product list and product detail screens
+- Cart badge with live item count
+- Cart screen with quantity controls
+- Cart total calculation
+- Clear cart action
+- Checkout screen with basic form validation
+- Order placement flow that clears the cart
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Learning Focus
+
+This project is currently focused on understanding state management with Provider.
+
+Current state-management decisions:
+
+- `Cart` is shared app state and is exposed with `ChangeNotifierProvider`.
+- Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
+- Temporary screen state stays local to the screen.
+- Product detail quantity is local state because it only matters before the item is added to the cart.
+- Checkout form controllers are local state because they only belong to the checkout form.
+- `context.read` is used for actions that update state.
+- `context.select` is used when a widget only needs a specific value from Provider.
+- `Consumer` is used when a larger section needs to rebuild from cart changes.
+
+## Screenshots
+
+Screenshots will be added as the app reaches meaningful feature milestones. Since the app is still in early development, screenshots will be used from this point forward to show how the app progresses over time.
+
+Planned milestone screenshots:
+
+- Current product grid with product cards
+- Product detail screen with quantity selector
+- Cart screen with item quantity controls
+- Checkout screen
+- Order success screen when added
+- Search and filtering experience when added
+- Wishlist/favorites experience when added
+- Order history screen when added
+
+Suggested location for future screenshots:
+
+```text
+assets/screenshots/
+```
+
+## Project Structure
+
+```text
+lib/
+  main.dart
+  models/
+    cart.dart
+    cart_item.dart
+    product.dart
+  screens/
+    cart_screen.dart
+    checkout_screen.dart
+    product_detail_screen.dart
+    product_list_screen.dart
+  utils/
+    money.dart
+
+assets/
+  products/
+```
+
+## Roadmap
+
+Planned next features:
+
+- Add an order success screen after checkout
+- Add product categories and category filtering
+- Add product search
+- Add product sorting by price and name
+- Move product data behind a repository class
+- Add async product loading with loading, empty, and error states
+- Add wishlist/favorites with a separate Provider
+- Persist the cart locally between app launches
+- Add order history
+- Improve checkout with phone number, delivery notes, and payment method selection
+- Add stock quantity rules
+- Add discount code logic
+- Add a fake authentication flow
+- Later, connect product data to an API or backend service
+
+## Git Workflow
+
+The project uses:
+
+- `main` for meaningful stable updates
+- `dev` for active development
+
+Current development work is committed directly to `dev`. When `dev` reaches a meaningful upgrade point, it can be merged into `main`.
+
+## Running The App
+
+Install dependencies:
+
+```bash
+flutter pub get
+```
+
+Run on an iOS simulator:
+
+```bash
+flutter run
+```
+
+Analyze the project:
+
+```bash
+flutter analyze
+```
