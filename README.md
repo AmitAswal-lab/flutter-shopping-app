@@ -42,9 +42,17 @@ Screenshots will be added as the app reaches meaningful feature milestones. Sinc
 Planned milestone screenshots:
 
 - Current product grid with product cards
+<img width="834" height="1594" alt="image" src="https://github.com/user-attachments/assets/579d8825-a399-4c3d-8f8b-2d50723952bd" />
+
 - Product detail screen with quantity selector
+  <img width="834" height="1594" alt="image" src="https://github.com/user-attachments/assets/ade50b95-8dfc-405c-8432-626e03cad177" />
+
 - Cart screen with item quantity controls
+  <img width="822" height="1692" alt="image" src="https://github.com/user-attachments/assets/70b41f3f-9f39-43d8-864e-26f831438534" />
+
 - Checkout screen
+  <img width="822" height="1692" alt="image" src="https://github.com/user-attachments/assets/a78966bd-c2e2-4fb4-97c5-004341afa679" />
+
 - Order success screen when added
 - Search and filtering experience when added
 - Wishlist/favorites experience when added
