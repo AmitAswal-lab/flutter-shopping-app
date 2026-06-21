@@ -19,6 +19,7 @@ The app currently includes:
 - Clear cart action
 - Checkout screen with basic form validation
 - Order placement flow that clears the cart
+- Order success screen after checkout
 
 ## Learning Focus
 
@@ -39,21 +40,22 @@ Current state-management decisions:
 
 Screenshots will be added as the app reaches meaningful feature milestones. Since the app is still in early development, screenshots will be used from this point forward to show how the app progresses over time.
 
+Current milestone screenshots:
+
+| Product Grid | Product Detail |
+| --- | --- |
+| <img width="240" alt="Product grid" src="https://github.com/user-attachments/assets/579d8825-a399-4c3d-8f8b-2d50723952bd" /> | <img width="240" alt="Product detail" src="https://github.com/user-attachments/assets/ade50b95-8dfc-405c-8432-626e03cad177" /> |
+
+| Cart | Checkout |
+| --- | --- |
+| <img width="240" alt="Cart" src="https://github.com/user-attachments/assets/70b41f3f-9f39-43d8-864e-26f831438534" /> | <img width="240" alt="Checkout" src="https://github.com/user-attachments/assets/a78966bd-c2e2-4fb4-97c5-004341afa679" /> |
+
+| Order Success |
+| --- |
+| <img width="240" alt="Order success" src="assets/screenshots/order_success.png" /> |
+
 Planned milestone screenshots:
 
-- Current product grid with product cards
-<img width="834" height="1594" alt="image" src="https://github.com/user-attachments/assets/579d8825-a399-4c3d-8f8b-2d50723952bd" />
-
-- Product detail screen with quantity selector
-  <img width="834" height="1594" alt="image" src="https://github.com/user-attachments/assets/ade50b95-8dfc-405c-8432-626e03cad177" />
-
-- Cart screen with item quantity controls
-  <img width="822" height="1692" alt="image" src="https://github.com/user-attachments/assets/70b41f3f-9f39-43d8-864e-26f831438534" />
-
-- Checkout screen
-  <img width="822" height="1692" alt="image" src="https://github.com/user-attachments/assets/a78966bd-c2e2-4fb4-97c5-004341afa679" />
-
-- Order success screen when added
 - Search and filtering experience when added
 - Wishlist/favorites experience when added
 - Order history screen when added
@@ -76,6 +78,7 @@ lib/
   screens/
     cart_screen.dart
     checkout_screen.dart
+    order_success_screen.dart
     product_detail_screen.dart
     product_list_screen.dart
   utils/
@@ -83,13 +86,13 @@ lib/
 
 assets/
   products/
+  screenshots/
 ```
 
 ## Roadmap
 
 Planned next features:
 
-- Add an order success screen after checkout
 - Add product categories and category filtering
 - Add product search
 - Add product sorting by price and name

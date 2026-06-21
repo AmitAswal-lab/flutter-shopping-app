@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/cart.dart';
 import '../models/cart_item.dart';
 import '../utils/money.dart';
+import 'order_success_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -29,15 +30,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (form == null || !form.validate()) return;
 
     final cart = context.read<Cart>();
-    final total = formatCents(cart.totalPriceCents);
+    final totalPriceCents = cart.totalPriceCents;
+    final customerName = _nameController.text.trim();
     final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
 
     cart.clear();
-    navigator.popUntil((route) => route.isFirst);
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('Order placed for $total')));
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => OrderSuccessScreen(
+          customerName: customerName,
+          totalPriceCents: totalPriceCents,
+        ),
+      ),
+      (route) => route.isFirst,
+    );
   }
 
   String? _requiredField(String? value) {
