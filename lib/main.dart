@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'screens/product_list_screen.dart';
+
 void main() {
   runApp(const ShoppingApp());
 }
@@ -13,19 +15,7 @@ class ShoppingApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Shopping App',
       theme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
-      home: const HomeScreen(),
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Shopping App')),
-      body: const Center(child: Text('Shopping App')),
+      home: const ProductListScreen(),
     );
   }
 }
