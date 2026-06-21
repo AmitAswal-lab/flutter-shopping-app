@@ -15,10 +15,17 @@ class ProductListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Shop'), actions: const [_CartBadge()]),
-      body: ListView.builder(
+      body: GridView.builder(
+        padding: const EdgeInsets.all(16),
         itemCount: kProducts.length,
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 240,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.72,
+        ),
         itemBuilder: (context, index) {
-          return _ProductTile(product: kProducts[index]);
+          return _ProductCard(product: kProducts[index]);
         },
       ),
     );
@@ -46,37 +53,71 @@ class _CartBadge extends StatelessWidget {
   }
 }
 
-class _ProductTile extends StatelessWidget {
+class _ProductCard extends StatelessWidget {
   final Product product;
 
-  const _ProductTile({required this.product});
+  const _ProductCard({required this.product});
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ProductDetailScreen(product: product),
-          ),
-        );
-      },
-      leading: Text(product.emoji, style: const TextStyle(fontSize: 32)),
-      title: Text(product.name),
-      subtitle: Text(formatCents(product.priceCents)),
-      trailing: IconButton(
-        icon: const Icon(Icons.add_circle),
-        tooltip: 'Add to cart',
-        onPressed: () {
-          context.read<Cart>().add(
-            CartItem(
-              productId: product.id,
-              name: product.name,
-              priceCents: product.priceCents,
-              quantity: 1,
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ProductDetailScreen(product: product),
             ),
           );
         },
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Center(
+                  child: Image.asset(
+                    product.imageAsset,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                product.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                formatCents(product.priceCents),
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    context.read<Cart>().add(
+                      CartItem(
+                        productId: product.id,
+                        name: product.name,
+                        priceCents: product.priceCents,
+                        quantity: 1,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add_shopping_cart),
+                  label: const Text('Add'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

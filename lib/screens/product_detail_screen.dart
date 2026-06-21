@@ -59,8 +59,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Center(
-            child: Text(product.emoji, style: const TextStyle(fontSize: 96)),
+          AspectRatio(
+            aspectRatio: 1,
+            child: Image.asset(product.imageAsset, fit: BoxFit.contain),
           ),
           const SizedBox(height: 24),
           Text(product.name, style: Theme.of(context).textTheme.headlineMedium),
