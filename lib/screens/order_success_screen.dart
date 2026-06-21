@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/money.dart';
+import 'order_history_screen.dart';
 
 class OrderSuccessScreen extends StatelessWidget {
   final String customerName;
@@ -45,6 +46,18 @@ class OrderSuccessScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 32),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const OrderHistoryScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.receipt_long_outlined),
+                    label: const Text('View orders'),
+                  ),
+                  const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.storefront),

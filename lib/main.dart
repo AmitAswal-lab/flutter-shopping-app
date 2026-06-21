@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'models/cart.dart';
+import 'models/order_history.dart';
 import 'models/product_filter.dart';
 import 'models/wishlist.dart';
 import 'screens/product_list_screen.dart';
@@ -20,6 +21,7 @@ class ShoppingApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => Cart()),
         ChangeNotifierProvider(create: (_) => ProductFilter()),
         ChangeNotifierProvider(create: (_) => Wishlist()),
+        ChangeNotifierProvider(create: (_) => OrderHistory()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

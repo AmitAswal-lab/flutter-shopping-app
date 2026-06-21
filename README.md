@@ -22,6 +22,7 @@ The app currently includes:
 - Cart total calculation
 - Clear cart action
 - Checkout screen with basic form validation
+- In-memory order history screen
 - Order placement flow that clears the cart
 - Order success screen after checkout
 
@@ -34,10 +35,13 @@ Current state-management decisions:
 - `Cart` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `ProductFilter` is shared catalog state and is exposed with `ChangeNotifierProvider`.
 - `Wishlist` is shared app state and is exposed with `ChangeNotifierProvider`.
+- `OrderHistory` is shared app state and is exposed with `ChangeNotifierProvider`.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
 - Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
 - Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
+- Checkout creates an order snapshot before clearing the cart so order history keeps its own copy of purchased items.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
+- Order history is currently in-memory; persistence will be added later.
 - Temporary screen state stays local to the screen.
 - The search text controller stays local to the search field because it is a UI controller, not app data.
 - Product detail quantity is local state because it only matters before the item is added to the cart.
@@ -72,9 +76,9 @@ Current milestone screenshots:
 | --- |
 | <img width="240" alt="Product detail favorite" src="assets/screenshots/product_detail_favorite.png" /> |
 
-Planned milestone screenshots:
-
-- Order history screen when added
+| Order History |
+| --- |
+| <img width="240" alt="Order history" src="assets/screenshots/order_history.png" /> |
 
 Suggested location for future screenshots:
 
@@ -90,17 +94,21 @@ lib/
   models/
     cart.dart
     cart_item.dart
+    order.dart
+    order_history.dart
     product.dart
     product_filter.dart
     wishlist.dart
   screens/
     cart_screen.dart
     checkout_screen.dart
+    order_history_screen.dart
     order_success_screen.dart
     product_detail_screen.dart
     product_list_screen.dart
     wishlist_screen.dart
   utils/
+    date_time_format.dart
     money.dart
   widgets/
     product_card.dart
@@ -119,7 +127,6 @@ Planned next features:
 - Move product data behind a repository class
 - Add async product loading with loading, empty, and error states
 - Persist the cart locally between app launches
-- Add order history
 - Improve checkout with phone number, delivery notes, and payment method selection
 - Add stock quantity rules
 - Add discount code logic

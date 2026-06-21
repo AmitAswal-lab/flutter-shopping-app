@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/cart.dart';
+import '../models/order_history.dart';
 import '../models/product.dart';
 import '../models/product_filter.dart';
 import '../models/wishlist.dart';
 import '../widgets/product_card.dart';
 import 'cart_screen.dart';
+import 'order_history_screen.dart';
 import 'wishlist_screen.dart';
 
 class ProductListScreen extends StatelessWidget {
@@ -17,7 +19,7 @@ class ProductListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Shop'),
-        actions: const [_WishlistBadge(), _CartBadge()],
+        actions: const [_OrderHistoryBadge(), _WishlistBadge(), _CartBadge()],
       ),
       body: const _ProductCatalog(),
     );
@@ -248,6 +250,27 @@ class _EmptyProductResults extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _OrderHistoryBadge extends StatelessWidget {
+  const _OrderHistoryBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final count = context.select<OrderHistory, int>((history) => history.count);
+    return IconButton(
+      icon: Badge(
+        isLabelVisible: count > 0,
+        label: Text('$count'),
+        child: const Icon(Icons.receipt_long_outlined),
+      ),
+      onPressed: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const OrderHistoryScreen()));
+      },
     );
   }
 }

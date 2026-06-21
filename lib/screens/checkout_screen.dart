@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/cart.dart';
 import '../models/cart_item.dart';
+import '../models/order_history.dart';
 import '../utils/money.dart';
 import 'order_success_screen.dart';
 
@@ -32,8 +33,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final cart = context.read<Cart>();
     final totalPriceCents = cart.totalPriceCents;
     final customerName = _nameController.text.trim();
+    final deliveryAddress = _addressController.text.trim();
     final navigator = Navigator.of(context);
 
+    context.read<OrderHistory>().add(
+      customerName: customerName,
+      deliveryAddress: deliveryAddress,
+      items: cart.items,
+    );
     cart.clear();
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(
