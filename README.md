@@ -13,6 +13,8 @@ The app currently includes:
 - Category filtering for products
 - Local product image assets
 - Product detail screen
+- Wishlist/favorites screen
+- Favorite toggles from product cards and product detail
 - Quantity selector on the product detail screen
 - Add-to-cart behavior from both the product list and product detail screens
 - Cart badge with live item count
@@ -31,8 +33,11 @@ Current state-management decisions:
 
 - `Cart` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `ProductFilter` is shared catalog state and is exposed with `ChangeNotifierProvider`.
+- `Wishlist` is shared app state and is exposed with `ChangeNotifierProvider`.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
 - Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
+- Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
+- Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
 - Temporary screen state stays local to the screen.
 - The search text controller stays local to the search field because it is a UI controller, not app data.
 - Product detail quantity is local state because it only matters before the item is added to the cart.
@@ -59,10 +64,16 @@ Current milestone screenshots:
 | --- |
 | <img width="240" alt="Order success" src="assets/screenshots/order_success.png" /> |
 
+| Search and Filtering | Wishlist |
+| --- | --- |
+| <img width="240" alt="Search and filtering" src="assets/screenshots/search_filtering.png" /> | <img width="240" alt="Wishlist" src="assets/screenshots/wishlist.png" /> |
+
+| Product Detail Favorite |
+| --- |
+| <img width="240" alt="Product detail favorite" src="assets/screenshots/product_detail_favorite.png" /> |
+
 Planned milestone screenshots:
 
-- Search and filtering experience when added
-- Wishlist/favorites experience when added
 - Order history screen when added
 
 Suggested location for future screenshots:
@@ -81,14 +92,19 @@ lib/
     cart_item.dart
     product.dart
     product_filter.dart
+    wishlist.dart
   screens/
     cart_screen.dart
     checkout_screen.dart
     order_success_screen.dart
     product_detail_screen.dart
     product_list_screen.dart
+    wishlist_screen.dart
   utils/
     money.dart
+  widgets/
+    product_card.dart
+    wishlist_icon_button.dart
 
 assets/
   products/
@@ -102,7 +118,6 @@ Planned next features:
 - Add product sorting by price and name
 - Move product data behind a repository class
 - Add async product loading with loading, empty, and error states
-- Add wishlist/favorites with a separate Provider
 - Persist the cart locally between app launches
 - Add order history
 - Improve checkout with phone number, delivery notes, and payment method selection

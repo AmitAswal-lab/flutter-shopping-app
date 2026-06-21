@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/cart.dart';
-import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../models/product_filter.dart';
-import '../utils/money.dart';
+import '../models/wishlist.dart';
+import '../widgets/product_card.dart';
 import 'cart_screen.dart';
-import 'product_detail_screen.dart';
+import 'wishlist_screen.dart';
 
 class ProductListScreen extends StatelessWidget {
   const ProductListScreen({super.key});
@@ -15,7 +15,10 @@ class ProductListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Shop'), actions: const [_CartBadge()]),
+      appBar: AppBar(
+        title: const Text('Shop'),
+        actions: const [_WishlistBadge(), _CartBadge()],
+      ),
       body: const _ProductCatalog(),
     );
   }
@@ -50,7 +53,7 @@ class _ProductCatalog extends StatelessWidget {
                 childAspectRatio: 0.72,
               ),
               itemBuilder: (context, index) {
-                return _ProductCard(product: visibleProducts[index]);
+                return ProductCard(product: visibleProducts[index]);
               },
             ),
           ),
@@ -249,6 +252,27 @@ class _EmptyProductResults extends StatelessWidget {
   }
 }
 
+class _WishlistBadge extends StatelessWidget {
+  const _WishlistBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final count = context.select<Wishlist, int>((wishlist) => wishlist.count);
+    return IconButton(
+      icon: Badge(
+        isLabelVisible: count > 0,
+        label: Text('$count'),
+        child: const Icon(Icons.favorite_border),
+      ),
+      onPressed: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const WishlistScreen()));
+      },
+    );
+  }
+}
+
 class _CartBadge extends StatelessWidget {
   const _CartBadge();
 
@@ -266,76 +290,6 @@ class _CartBadge extends StatelessWidget {
           context,
         ).push(MaterialPageRoute(builder: (_) => const CartScreen()));
       },
-    );
-  }
-}
-
-class _ProductCard extends StatelessWidget {
-  final Product product;
-
-  const _ProductCard({required this.product});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: InkWell(
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ProductDetailScreen(product: product),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Center(
-                  child: Image.asset(
-                    product.imageAsset,
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                product.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                formatCents(product.priceCents),
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () {
-                    context.read<Cart>().add(
-                      CartItem(
-                        productId: product.id,
-                        name: product.name,
-                        priceCents: product.priceCents,
-                        quantity: 1,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.add_shopping_cart),
-                  label: const Text('Add'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

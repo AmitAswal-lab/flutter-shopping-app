@@ -5,6 +5,7 @@ import '../models/cart.dart';
 import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../utils/money.dart';
+import '../widgets/wishlist_icon_button.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Product product;
@@ -55,7 +56,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(product.name)),
+      appBar: AppBar(
+        title: Text(product.name),
+        actions: [WishlistIconButton(product: product)],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'models/cart.dart';
 import 'models/product_filter.dart';
+import 'models/wishlist.dart';
 import 'screens/product_list_screen.dart';
 
 void main() {
@@ -18,6 +19,7 @@ class ShoppingApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => Cart()),
         ChangeNotifierProvider(create: (_) => ProductFilter()),
+        ChangeNotifierProvider(create: (_) => Wishlist()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
