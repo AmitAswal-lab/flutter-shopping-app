@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'models/cart.dart';
+import 'models/product_filter.dart';
 import 'screens/product_list_screen.dart';
 
 void main() {
@@ -13,8 +14,11 @@ class ShoppingApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => Cart(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => Cart()),
+        ChangeNotifierProvider(create: (_) => ProductFilter()),
+      ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Shopping App',

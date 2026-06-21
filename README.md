@@ -9,6 +9,8 @@ The goal of this project is to build a realistic shopping flow step by step whil
 The app currently includes:
 
 - Product listing screen with a responsive product card grid
+- Product search by product name or category
+- Category filtering for products
 - Local product image assets
 - Product detail screen
 - Quantity selector on the product detail screen
@@ -28,8 +30,11 @@ This project is currently focused on understanding state management with Provide
 Current state-management decisions:
 
 - `Cart` is shared app state and is exposed with `ChangeNotifierProvider`.
+- `ProductFilter` is shared catalog state and is exposed with `ChangeNotifierProvider`.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
+- Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
 - Temporary screen state stays local to the screen.
+- The search text controller stays local to the search field because it is a UI controller, not app data.
 - Product detail quantity is local state because it only matters before the item is added to the cart.
 - Checkout form controllers are local state because they only belong to the checkout form.
 - `context.read` is used for actions that update state.
@@ -75,6 +80,7 @@ lib/
     cart.dart
     cart_item.dart
     product.dart
+    product_filter.dart
   screens/
     cart_screen.dart
     checkout_screen.dart
@@ -93,8 +99,6 @@ assets/
 
 Planned next features:
 
-- Add product categories and category filtering
-- Add product search
 - Add product sorting by price and name
 - Move product data behind a repository class
 - Add async product loading with loading, empty, and error states
