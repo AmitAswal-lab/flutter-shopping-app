@@ -5,6 +5,7 @@ import '../models/cart.dart';
 import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../utils/money.dart';
+import 'cart_screen.dart';
 
 class ProductListScreen extends StatelessWidget {
   const ProductListScreen({super.key});
@@ -32,13 +33,17 @@ class _CartBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final count = context.select<Cart, int>((cart) => cart.totalCount);
-    return Padding(
-      padding: const EdgeInsets.only(right: 16),
-      child: Badge(
+    return IconButton(
+      icon: Badge(
         isLabelVisible: count > 0,
         label: Text('$count'),
         child: const Icon(Icons.shopping_cart_outlined),
       ),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const CartScreen()),
+        );
+      },
     );
   }
 }
