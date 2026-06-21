@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/cart.dart';
 import '../models/cart_item.dart';
 import '../utils/money.dart';
+import 'checkout_screen.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});
@@ -115,13 +116,37 @@ class _SummaryBar extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: Colors.white24)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Total ($totalCount items)', style: const TextStyle(fontSize: 16)),
-          Text(
-            formatCents(totalPriceCents),
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total ($totalCount items)',
+                style: const TextStyle(fontSize: 16),
+              ),
+              Text(
+                formatCents(totalPriceCents),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CheckoutScreen()),
+                );
+              },
+              icon: const Icon(Icons.payment),
+              label: const Text('Checkout'),
+            ),
           ),
         ],
       ),
