@@ -6,6 +6,7 @@ import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../utils/money.dart';
 import 'cart_screen.dart';
+import 'product_detail_screen.dart';
 
 class ProductListScreen extends StatelessWidget {
   const ProductListScreen({super.key});
@@ -13,10 +14,7 @@ class ProductListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Shop'),
-        actions: const [_CartBadge()],
-      ),
+      appBar: AppBar(title: const Text('Shop'), actions: const [_CartBadge()]),
       body: ListView.builder(
         itemCount: kProducts.length,
         itemBuilder: (context, index) {
@@ -40,9 +38,9 @@ class _CartBadge extends StatelessWidget {
         child: const Icon(Icons.shopping_cart_outlined),
       ),
       onPressed: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const CartScreen()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const CartScreen()));
       },
     );
   }
@@ -56,20 +54,28 @@ class _ProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ProductDetailScreen(product: product),
+          ),
+        );
+      },
       leading: Text(product.emoji, style: const TextStyle(fontSize: 32)),
       title: Text(product.name),
       subtitle: Text(formatCents(product.priceCents)),
       trailing: IconButton(
         icon: const Icon(Icons.add_circle),
+        tooltip: 'Add to cart',
         onPressed: () {
           context.read<Cart>().add(
-                CartItem(
-                  productId: product.id,
-                  name: product.name,
-                  priceCents: product.priceCents,
-                  quantity: 1,
-                ),
-              );
+            CartItem(
+              productId: product.id,
+              name: product.name,
+              priceCents: product.priceCents,
+              quantity: 1,
+            ),
+          );
         },
       ),
     );
