@@ -23,14 +23,13 @@ class WishlistIconButton extends StatelessWidget {
 
     final icon = Icon(isFavorite ? Icons.favorite : Icons.favorite_border);
     final tooltip = isFavorite ? 'Remove from wishlist' : 'Add to wishlist';
-
-    void toggleFavorite() {
+    void onPressed() {
       context.read<Wishlist>().toggle(product.id);
     }
 
     if (filled) {
       return IconButton.filledTonal(
-        onPressed: toggleFavorite,
+        onPressed: onPressed,
         icon: icon,
         color: isFavorite ? colorScheme.primary : null,
         tooltip: tooltip,
@@ -38,7 +37,7 @@ class WishlistIconButton extends StatelessWidget {
     }
 
     return IconButton(
-      onPressed: toggleFavorite,
+      onPressed: onPressed,
       icon: icon,
       color: isFavorite ? colorScheme.primary : null,
       tooltip: tooltip,

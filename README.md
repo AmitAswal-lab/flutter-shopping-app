@@ -8,23 +8,13 @@ The goal of this project is to build a realistic shopping flow step by step whil
 
 The app currently includes:
 
-- Product listing screen with a responsive product card grid
-- Product search by product name or category
-- Category filtering for products
-- Local product image assets
-- Product detail screen
-- Wishlist/favorites screen
-- Favorite toggles from product cards and product detail
-- Quantity selector on the product detail screen
-- Add-to-cart behavior from both the product list and product detail screens
-- Cart badge with live item count
-- Cart screen with quantity controls
-- Cart total calculation
-- Clear cart action
-- Checkout screen with basic form validation
-- In-memory order history screen
-- Order placement flow that clears the cart
-- Order success screen after checkout
+- Product browsing with searchable, filterable product cards
+- Bottom navigation for Shop, Wishlist, Orders, and Cart
+- Product detail pages with quantity selection and add-to-cart behavior
+- Cart and checkout flow with order confirmation
+- Wishlist/favorites experience
+- In-memory order history
+- Local product and screenshot assets
 
 ## Learning Focus
 
@@ -80,6 +70,10 @@ Current milestone screenshots:
 | --- |
 | <img width="240" alt="Order history" src="assets/screenshots/order_history.png" /> |
 
+| Clean Navigation |
+| --- |
+| <img width="240" alt="Clean navigation" src="assets/screenshots/clean_navigation.png" /> |
+
 Suggested location for future screenshots:
 
 ```text
@@ -102,6 +96,7 @@ lib/
   screens/
     cart_screen.dart
     checkout_screen.dart
+    main_shell_screen.dart
     order_history_screen.dart
     order_success_screen.dart
     product_detail_screen.dart
@@ -118,20 +113,6 @@ assets/
   products/
   screenshots/
 ```
-
-## Roadmap
-
-Planned next features:
-
-- Add product sorting by price and name
-- Move product data behind a repository class
-- Add async product loading with loading, empty, and error states
-- Persist the cart locally between app launches
-- Improve checkout with phone number, delivery notes, and payment method selection
-- Add stock quantity rules
-- Add discount code logic
-- Add a fake authentication flow
-- Later, connect product data to an API or backend service
 
 ## Git Workflow
 

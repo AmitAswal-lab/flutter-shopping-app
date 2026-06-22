@@ -8,7 +8,9 @@ import '../utils/date_time_format.dart';
 import '../utils/money.dart';
 
 class OrderHistoryScreen extends StatelessWidget {
-  const OrderHistoryScreen({super.key});
+  final VoidCallback? onBrowseProducts;
+
+  const OrderHistoryScreen({super.key, this.onBrowseProducts});
 
   @override
   Widget build(BuildContext context) {
@@ -27,13 +29,15 @@ class OrderHistoryScreen extends StatelessWidget {
             ),
         ],
       ),
-      body: const _OrderHistoryBody(),
+      body: _OrderHistoryBody(onBrowseProducts: onBrowseProducts),
     );
   }
 }
 
 class _OrderHistoryBody extends StatelessWidget {
-  const _OrderHistoryBody();
+  final VoidCallback? onBrowseProducts;
+
+  const _OrderHistoryBody({this.onBrowseProducts});
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +46,7 @@ class _OrderHistoryBody extends StatelessWidget {
     );
 
     if (orders.isEmpty) {
-      return const _EmptyOrderHistory();
+      return _EmptyOrderHistory(onBrowseProducts: onBrowseProducts);
     }
 
     return ListView.separated(
@@ -109,7 +113,9 @@ class _OrderItemRow extends StatelessWidget {
 }
 
 class _EmptyOrderHistory extends StatelessWidget {
-  const _EmptyOrderHistory();
+  final VoidCallback? onBrowseProducts;
+
+  const _EmptyOrderHistory({this.onBrowseProducts});
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +144,7 @@ class _EmptyOrderHistory extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: onBrowseProducts ?? () => Navigator.of(context).pop(),
               icon: const Icon(Icons.storefront),
               label: const Text('Browse products'),
             ),

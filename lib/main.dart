@@ -5,7 +5,7 @@ import 'models/cart.dart';
 import 'models/order_history.dart';
 import 'models/product_filter.dart';
 import 'models/wishlist.dart';
-import 'screens/product_list_screen.dart';
+import 'screens/main_shell_screen.dart';
 
 void main() {
   runApp(const ShoppingApp());
@@ -27,7 +27,7 @@ class ShoppingApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         title: 'Shopping App',
         theme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
-        home: const ProductListScreen(),
+        home: const MainShellScreen(),
       ),
     );
   }
