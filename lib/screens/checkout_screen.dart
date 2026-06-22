@@ -84,7 +84,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           TextFormField(
                             controller: _nameController,
                             decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
                               labelText: 'Full name',
                             ),
                             textInputAction: TextInputAction.next,
@@ -94,7 +93,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           TextFormField(
                             controller: _addressController,
                             decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
                               labelText: 'Delivery address',
                             ),
                             maxLines: 3,

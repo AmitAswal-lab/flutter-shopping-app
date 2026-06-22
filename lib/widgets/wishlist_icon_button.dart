@@ -20,6 +20,8 @@ class WishlistIconButton extends StatelessWidget {
       (wishlist) => wishlist.isFavorite(product.id),
     );
     final colorScheme = Theme.of(context).colorScheme;
+    const favoriteColor = Color(0xFFFF7A90);
+    const favoriteContainerColor = Color(0xFF4D1722);
 
     final icon = Icon(isFavorite ? Icons.favorite : Icons.favorite_border);
     final tooltip = isFavorite ? 'Remove from wishlist' : 'Add to wishlist';
@@ -31,7 +33,12 @@ class WishlistIconButton extends StatelessWidget {
       return IconButton.filledTonal(
         onPressed: onPressed,
         icon: icon,
-        color: isFavorite ? colorScheme.primary : null,
+        color: isFavorite ? favoriteColor : null,
+        style: IconButton.styleFrom(
+          backgroundColor: isFavorite
+              ? favoriteContainerColor
+              : colorScheme.surfaceContainerHigh,
+        ),
         tooltip: tooltip,
       );
     }
@@ -39,7 +46,7 @@ class WishlistIconButton extends StatelessWidget {
     return IconButton(
       onPressed: onPressed,
       icon: icon,
-      color: isFavorite ? colorScheme.primary : null,
+      color: isFavorite ? favoriteColor : null,
       tooltip: tooltip,
     );
   }

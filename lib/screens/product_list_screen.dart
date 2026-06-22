@@ -149,8 +149,6 @@ class _ProductSearchFieldState extends State<_ProductSearchField> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return TextField(
       controller: _controller,
       textInputAction: TextInputAction.search,
@@ -164,12 +162,6 @@ class _ProductSearchFieldState extends State<_ProductSearchField> {
                 icon: const Icon(Icons.close),
                 tooltip: 'Clear search',
               ),
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
       ),
     );
   }

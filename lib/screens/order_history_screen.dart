@@ -70,7 +70,6 @@ class _OrderHistoryCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ExpansionTile(
         leading: CircleAvatar(child: Text(order.totalCount.toString())),
         title: Text(

@@ -9,12 +9,10 @@ The goal of this project is to build a realistic shopping flow step by step whil
 The app currently includes:
 
 - Product browsing with searchable, filterable product cards
-- Bottom navigation for Shop, Wishlist, Orders, and Cart
 - Product detail pages with quantity selection and add-to-cart behavior
 - Cart and checkout flow with order confirmation
 - Wishlist/favorites experience
 - In-memory order history
-- Local product and screenshot assets
 
 ## Learning Focus
 
@@ -46,33 +44,29 @@ Screenshots will be added as the app reaches meaningful feature milestones. Sinc
 
 Current milestone screenshots:
 
-| Product Grid | Product Detail |
-| --- | --- |
+| Product Grid                                                                                                                 | Product Detail                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | <img width="240" alt="Product grid" src="https://github.com/user-attachments/assets/579d8825-a399-4c3d-8f8b-2d50723952bd" /> | <img width="240" alt="Product detail" src="https://github.com/user-attachments/assets/ade50b95-8dfc-405c-8432-626e03cad177" /> |
 
-| Cart | Checkout |
-| --- | --- |
+| Cart                                                                                                                 | Checkout                                                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | <img width="240" alt="Cart" src="https://github.com/user-attachments/assets/70b41f3f-9f39-43d8-864e-26f831438534" /> | <img width="240" alt="Checkout" src="https://github.com/user-attachments/assets/a78966bd-c2e2-4fb4-97c5-004341afa679" /> |
 
-| Order Success |
-| --- |
+| Order Success                                                                      |
+| ---------------------------------------------------------------------------------- |
 | <img width="240" alt="Order success" src="assets/screenshots/order_success.png" /> |
 
-| Search and Filtering | Wishlist |
-| --- | --- |
+| Search and Filtering                                                                         | Wishlist                                                                 |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | <img width="240" alt="Search and filtering" src="assets/screenshots/search_filtering.png" /> | <img width="240" alt="Wishlist" src="assets/screenshots/wishlist.png" /> |
 
-| Product Detail Favorite |
-| --- |
+| Product Detail Favorite                                                                                |
+| ------------------------------------------------------------------------------------------------------ |
 | <img width="240" alt="Product detail favorite" src="assets/screenshots/product_detail_favorite.png" /> |
 
-| Order History |
-| --- |
+| Order History                                                                      |
+| ---------------------------------------------------------------------------------- |
 | <img width="240" alt="Order history" src="assets/screenshots/order_history.png" /> |
-
-| Clean Navigation |
-| --- |
-| <img width="240" alt="Clean navigation" src="assets/screenshots/clean_navigation.png" /> |
 
 Suggested location for future screenshots:
 
@@ -96,7 +90,6 @@ lib/
   screens/
     cart_screen.dart
     checkout_screen.dart
-    main_shell_screen.dart
     order_history_screen.dart
     order_success_screen.dart
     product_detail_screen.dart
