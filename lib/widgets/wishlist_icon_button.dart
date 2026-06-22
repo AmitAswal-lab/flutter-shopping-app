@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/product.dart';
-import '../models/wishlist.dart';
+import '../providers/wishlist.dart';
 
 class WishlistIconButton extends StatelessWidget {
   final Product product;

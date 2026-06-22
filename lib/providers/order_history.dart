@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import 'cart_item.dart';
-import 'order.dart';
+import '../models/cart_item.dart';
+import '../models/order.dart';
 
 class OrderHistory extends ChangeNotifier {
   final List<Order> _orders = [];

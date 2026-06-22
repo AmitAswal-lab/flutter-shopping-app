@@ -80,11 +80,12 @@ assets/screenshots/
 lib/
   main.dart
   models/
-    cart.dart
     cart_item.dart
     order.dart
-    order_history.dart
     product.dart
+  providers/
+    cart.dart
+    order_history.dart
     product_filter.dart
     wishlist.dart
   screens/

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/cart.dart';
+import '../providers/cart.dart';
 import '../models/cart_item.dart';
-import '../models/order_history.dart';
+import '../providers/order_history.dart';
 import '../utils/money.dart';
 import 'order_success_screen.dart';
 

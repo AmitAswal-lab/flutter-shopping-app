@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import 'product.dart';
+import '../models/product.dart';
 
 class ProductFilter extends ChangeNotifier {
   String _query = '';

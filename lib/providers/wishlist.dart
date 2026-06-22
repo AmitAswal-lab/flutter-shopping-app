@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import 'product.dart';
+import '../models/product.dart';
 
 class Wishlist extends ChangeNotifier {
   final Set<String> _productIds = <String>{};

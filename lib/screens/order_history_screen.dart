@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/cart_item.dart';
 import '../models/order.dart';
-import '../models/order_history.dart';
+import '../providers/order_history.dart';
 import '../utils/date_time_format.dart';
 import '../utils/money.dart';
 

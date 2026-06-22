@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/cart.dart';
-import '../models/order_history.dart';
-import '../models/wishlist.dart';
+import '../providers/cart.dart';
+import '../providers/order_history.dart';
+import '../providers/wishlist.dart';
 import 'cart_screen.dart';
 import 'order_history_screen.dart';
 import 'product_list_screen.dart';

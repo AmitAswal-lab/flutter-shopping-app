@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/product.dart';
-import '../models/product_filter.dart';
+import '../providers/product_filter.dart';
 import '../widgets/product_card.dart';
 
 class ProductListScreen extends StatelessWidget {

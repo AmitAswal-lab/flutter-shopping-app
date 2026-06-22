@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/product.dart';
-import '../models/wishlist.dart';
+import '../providers/wishlist.dart';
 import '../widgets/product_card.dart';
 
 class WishlistScreen extends StatelessWidget {
