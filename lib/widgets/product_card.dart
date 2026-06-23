@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../providers/cart.dart';
-import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../screens/product_detail_screen.dart';
 import '../utils/money.dart';
@@ -25,65 +22,136 @@ class ProductCard extends StatelessWidget {
             ),
           );
         },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Center(
-                        child: Image.asset(
-                          product.imageAsset,
-                          fit: BoxFit.contain,
-                          width: double.infinity,
-                        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 6,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                      child: Image.asset(
+                        product.imageAsset,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
                       ),
                     ),
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: WishlistIconButton(product: product, filled: true),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: WishlistIconButton(product: product, filled: true),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 6,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 52,
+                      child: Text(
+                        product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatCents(product.priceCents),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 2),
+                    _ListPrice(product: product),
+                    const SizedBox(height: 12),
+                    _DealBadge(discountPercent: product.discountPercent),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                product.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                formatCents(product.priceCents),
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () {
-                    context.read<Cart>().add(
-                      CartItem(
-                        productId: product.id,
-                        name: product.name,
-                        priceCents: product.priceCents,
-                        quantity: 1,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.add_shopping_cart),
-                  label: const Text('Add'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _ListPrice extends StatelessWidget {
+  final Product product;
+
+  const _ListPrice({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          const TextSpan(text: 'M.R.P: '),
+          TextSpan(
+            text: formatCents(product.listPriceCents),
+            style: const TextStyle(decoration: TextDecoration.lineThrough),
+          ),
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall,
+    );
+  }
+}
+
+class _DealBadge extends StatelessWidget {
+  final int discountPercent;
+
+  const _DealBadge({required this.discountPercent});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: colorScheme.error,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+            child: Text(
+              '$discountPercent% off',
+              style: TextStyle(
+                color: colorScheme.onError,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Limited time deal',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: colorScheme.error,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              height: 1.05,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -68,11 +68,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             child: Image.asset(product.imageAsset, fit: BoxFit.contain),
           ),
           const SizedBox(height: 24),
+          Text(product.brand, style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 6),
           Text(product.name, style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 8),
           Text(
             formatCents(product.priceCents),
             style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 16),
+          _ProductMetaRow(product: product),
+          const SizedBox(height: 24),
+          Text('Description', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(
+            product.description,
+            style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 16),
           Text(
@@ -102,6 +113,47 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ],
       ),
     );
+  }
+}
+
+class _ProductMetaRow extends StatelessWidget {
+  final Product product;
+
+  const _ProductMetaRow({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _ProductMetaChip(
+          icon: Icons.category_outlined,
+          label: product.category.label,
+        ),
+        _ProductMetaChip(
+          icon: Icons.star_rounded,
+          label:
+              '${product.rating.toStringAsFixed(1)} (${product.reviewCount})',
+        ),
+        _ProductMetaChip(
+          icon: Icons.inventory_2_outlined,
+          label: '${product.stockCount} in stock',
+        ),
+      ],
+    );
+  }
+}
+
+class _ProductMetaChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ProductMetaChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(avatar: Icon(icon, size: 18), label: Text(label));
   }
 }
 

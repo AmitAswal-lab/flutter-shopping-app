@@ -43,7 +43,7 @@ class _ProductCatalog extends StatelessWidget {
                 maxCrossAxisExtent: 240,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 0.72,
+                childAspectRatio: 0.52,
               ),
               itemBuilder: (context, index) {
                 return ProductCard(product: visibleProducts[index]);

@@ -37,7 +37,7 @@ class WishlistIconButton extends StatelessWidget {
         style: IconButton.styleFrom(
           backgroundColor: isFavorite
               ? favoriteContainerColor
-              : colorScheme.surfaceContainerHigh,
+              : colorScheme.surfaceContainerHighest,
         ),
         tooltip: tooltip,
       );

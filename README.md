@@ -9,10 +9,14 @@ The goal of this project is to build a realistic shopping flow step by step whil
 The app currently includes:
 
 - Product browsing with searchable, filterable product cards
+- Expanded local product catalog with brand, rating, stock, and description data
+- Bottom navigation for Shop, Wishlist, Orders, and Cart
 - Product detail pages with quantity selection and add-to-cart behavior
 - Cart and checkout flow with order confirmation
 - Wishlist/favorites experience
 - In-memory order history
+- Centralized Material theme foundation
+- Local product and screenshot assets
 
 ## Learning Focus
 
@@ -68,6 +72,10 @@ Current milestone screenshots:
 | ---------------------------------------------------------------------------------- |
 | <img width="240" alt="Order history" src="assets/screenshots/order_history.png" /> |
 
+| Clean Navigation                                                                         |
+| ---------------------------------------------------------------------------------------- |
+| <img width="240" alt="Clean navigation" src="assets/screenshots/clean_navigation.png" /> |
+
 Suggested location for future screenshots:
 
 ```text
@@ -91,11 +99,14 @@ lib/
   screens/
     cart_screen.dart
     checkout_screen.dart
+    main_shell_screen.dart
     order_history_screen.dart
     order_success_screen.dart
     product_detail_screen.dart
     product_list_screen.dart
     wishlist_screen.dart
+  theme/
+    app_theme.dart
   utils/
     date_time_format.dart
     money.dart
