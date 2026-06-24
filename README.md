@@ -15,6 +15,7 @@ The app currently includes:
 - Cart and checkout flow with order confirmation
 - Wishlist/favorites experience
 - In-memory order history
+- Account tab with Firebase email/password authentication UI
 - Centralized Material theme foundation
 - Local product and screenshot assets
 
@@ -28,6 +29,7 @@ Current state-management decisions:
 - `ProductFilter` is shared catalog state and is exposed with `ChangeNotifierProvider`.
 - `Wishlist` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `OrderHistory` is shared app state and is exposed with `ChangeNotifierProvider`.
+- `AuthController` owns Firebase auth state and is exposed with `ChangeNotifierProvider`.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
 - Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
 - Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
@@ -93,10 +95,12 @@ lib/
     product.dart
   providers/
     cart.dart
+    auth_controller.dart
     order_history.dart
     product_filter.dart
     wishlist.dart
   screens/
+    account_screen.dart
     cart_screen.dart
     checkout_screen.dart
     main_shell_screen.dart
@@ -147,3 +151,24 @@ Analyze the project:
 ```bash
 flutter analyze
 ```
+
+## Firebase Setup
+
+Firebase email/password authentication is wired in the app.
+
+The iOS Firebase app is configured with:
+
+```text
+Bundle ID: com.example.shoppingApp
+Config file: ios/Runner/GoogleService-Info.plist
+```
+
+Email/Password sign-in must be enabled in the Firebase Authentication console.
+
+Android Firebase setup is not wired yet because the provided Android Firebase app uses:
+
+```text
+Package name: com.example.shoppingApp
+```
+
+The current Android application ID is `com.example.shopping_app`.
