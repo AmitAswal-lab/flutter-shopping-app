@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/cart.dart';
 import '../providers/order_history.dart';
 import '../providers/wishlist.dart';
+import 'account_screen.dart';
 import 'cart_screen.dart';
 import 'order_history_screen.dart';
 import 'product_list_screen.dart';
@@ -41,6 +42,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
           WishlistScreen(onBrowseProducts: () => _selectTab(0)),
           OrderHistoryScreen(onBrowseProducts: () => _selectTab(0)),
           CartScreen(onBrowseProducts: () => _selectTab(0)),
+          const AccountScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -84,6 +86,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
               child: const Icon(Icons.shopping_cart),
             ),
             label: 'Cart',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Account',
           ),
         ],
       ),
