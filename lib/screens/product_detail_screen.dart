@@ -30,18 +30,33 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     setState(() => _quantity++);
   }
 
-  void _addToCart() {
+  Future<void> _addToCart() async {
     final product = widget.product;
-    context.read<Cart>().add(
-      CartItem(
-        productId: product.id,
-        name: product.name,
-        priceCents: product.priceCents,
-        quantity: _quantity,
-      ),
-    );
+    final messenger = ScaffoldMessenger.of(context);
 
-    ScaffoldMessenger.of(context)
+    try {
+      await context.read<Cart>().add(
+        CartItem(
+          productId: product.id,
+          name: product.name,
+          priceCents: product.priceCents,
+          quantity: _quantity,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Could not add item. Try again.')),
+        );
+      return;
+    }
+
+    if (!mounted) return;
+
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(content: Text('Added $_quantity ${product.name} to cart')),

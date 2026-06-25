@@ -18,6 +18,8 @@ class MainShellScreen extends StatefulWidget {
 }
 
 class _MainShellScreenState extends State<MainShellScreen> {
+  static const _shopTabIndex = 0;
+
   int _selectedIndex = 0;
 
   void _selectTab(int index) {
@@ -39,9 +41,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
         index: _selectedIndex,
         children: [
           const ProductListScreen(),
-          WishlistScreen(onBrowseProducts: () => _selectTab(0)),
-          OrderHistoryScreen(onBrowseProducts: () => _selectTab(0)),
-          CartScreen(onBrowseProducts: () => _selectTab(0)),
+          WishlistScreen(onBrowseProducts: () => _selectTab(_shopTabIndex)),
+          OrderHistoryScreen(onBrowseProducts: () => _selectTab(_shopTabIndex)),
+          CartScreen(onBrowseProducts: () => _selectTab(_shopTabIndex)),
           const AccountScreen(),
         ],
       ),
