@@ -11,6 +11,7 @@ class AuthController extends ChangeNotifier {
   User? _user;
   bool _isBusy = false;
   String? _errorMessage;
+  String? _successMessage;
 
   AuthController.configured()
     : _auth = FirebaseAuth.instance,
@@ -32,6 +33,7 @@ class AuthController extends ChangeNotifier {
   bool get isSignedIn => _user != null;
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
+  String? get successMessage => _successMessage;
 
   Future<void> signIn({required String email, required String password}) async {
     await _runAuthAction(() async {
@@ -42,13 +44,35 @@ class AuthController extends ChangeNotifier {
   Future<void> createAccount({
     required String email,
     required String password,
+    String? displayName,
   }) async {
     await _runAuthAction(() async {
-      await _auth?.createUserWithEmailAndPassword(
+      final credential = await _auth?.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
+
+      final name = displayName?.trim();
+      if (name == null || name.isEmpty) return;
+
+      await credential?.user?.updateDisplayName(name);
+      await credential?.user?.reload();
+      _user = _auth?.currentUser;
     });
+  }
+
+  Future<void> updateDisplayName(String displayName) async {
+    await _runAuthAction(() async {
+      final user = _auth?.currentUser;
+      if (user == null) {
+        throw FirebaseAuthException(code: 'user-not-found');
+      }
+
+      final name = displayName.trim();
+      await user.updateDisplayName(name.isEmpty ? null : name);
+      await user.reload();
+      _user = _auth?.currentUser;
+    }, successMessage: 'Profile updated.');
   }
 
   Future<void> signOut() async {
@@ -64,23 +88,39 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _runAuthAction(Future<void> Function() action) async {
+  void clearMessages() {
+    if (_errorMessage == null && _successMessage == null) return;
+
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+  }
+
+  Future<void> _runAuthAction(
+    Future<void> Function() action, {
+    String? successMessage,
+  }) async {
     if (_auth == null) {
       _errorMessage = 'Firebase is not configured yet.';
+      _successMessage = null;
       notifyListeners();
       return;
     }
 
     _isBusy = true;
     _errorMessage = null;
+    _successMessage = null;
     notifyListeners();
 
     try {
       await action();
+      _successMessage = successMessage;
     } on FirebaseAuthException catch (error) {
       _errorMessage = _messageFor(error);
+      _successMessage = null;
     } catch (_) {
       _errorMessage = 'Something went wrong. Please try again.';
+      _successMessage = null;
     } finally {
       _isBusy = false;
       notifyListeners();

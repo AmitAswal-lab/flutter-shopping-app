@@ -10,12 +10,12 @@ The app currently includes:
 
 - Product browsing with searchable, filterable product cards
 - Expanded local product catalog with brand, rating, stock, and description data
-- Bottom navigation for Shop, Wishlist, Orders, and Cart
+- Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
 - Product detail pages with quantity selection and add-to-cart behavior
 - Cart and checkout flow with order confirmation
 - Wishlist/favorites experience
-- In-memory order history
-- Account tab with Firebase email/password authentication UI
+- User-scoped cart, wishlist, and order history backed by Cloud Firestore
+- Separate sign-in/create-account flow and signed-in account profile UI
 - Centralized Material theme foundation
 - Local product and screenshot assets
 
@@ -29,13 +29,15 @@ Current state-management decisions:
 - `ProductFilter` is shared catalog state and is exposed with `ChangeNotifierProvider`.
 - `Wishlist` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `OrderHistory` is shared app state and is exposed with `ChangeNotifierProvider`.
-- `AuthController` owns Firebase auth state and is exposed with `ChangeNotifierProvider`.
+- `AuthController` owns Firebase auth/profile state and is exposed with `ChangeNotifierProvider`.
+- `AuthGate` shows the auth flow before the main shopping shell when no user is signed in.
+- Cart, wishlist, and order history bind to the signed-in user's Firebase UID.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
 - Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
 - Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
 - Checkout creates an order snapshot before clearing the cart so order history keeps its own copy of purchased items.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
-- Order history is currently in-memory; persistence will be added later.
+- Cart, wishlist, and order history are persisted under the signed-in user in Firestore.
 - Temporary screen state stays local to the screen.
 - The search text controller stays local to the search field because it is a UI controller, not app data.
 - Product detail quantity is local state because it only matters before the item is added to the cart.
@@ -101,6 +103,7 @@ lib/
     wishlist.dart
   screens/
     account_screen.dart
+    auth_screen.dart
     cart_screen.dart
     checkout_screen.dart
     main_shell_screen.dart
@@ -155,6 +158,7 @@ flutter analyze
 ## Firebase Setup
 
 Firebase email/password authentication is wired in the app.
+Cloud Firestore is used for user-scoped cart, wishlist, and order history data.
 
 The iOS Firebase app is configured with:
 
@@ -164,6 +168,15 @@ Config file: ios/Runner/GoogleService-Info.plist
 ```
 
 Email/Password sign-in must be enabled in the Firebase Authentication console.
+Cloud Firestore must also be enabled for the Firebase project.
+
+User data is stored under:
+
+```text
+users/{uid}/cartItems/{productId}
+users/{uid}/wishlistItems/{productId}
+users/{uid}/orders/{orderId}
+```
 
 Android Firebase setup is not wired yet because the provided Android Firebase app uses:
 

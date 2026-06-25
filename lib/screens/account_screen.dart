@@ -15,242 +15,180 @@ class AccountScreen extends StatelessWidget {
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
-          children: [
-            if (!auth.isConfigured)
-              _FirebaseSetupMessage(setupError: auth.setupError)
-            else if (auth.isSignedIn)
-              _SignedInAccount(auth: auth)
-            else
-              const _AuthForm(),
-          ],
+          children: [_AccountProfile(auth: auth)],
         ),
       ),
     );
   }
 }
 
-class _FirebaseSetupMessage extends StatelessWidget {
-  final String? setupError;
-
-  const _FirebaseSetupMessage({required this.setupError});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.cloud_off_outlined,
-              size: 40,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Firebase setup needed',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Email and password auth is wired in the app, but Firebase configuration files are not in the project yet.',
-            ),
-            const SizedBox(height: 16),
-            const Text('Needed for iOS simulator:'),
-            const SizedBox(height: 8),
-            const Text('Bundle ID: com.example.shoppingApp'),
-            const Text('File: ios/Runner/GoogleService-Info.plist'),
-            if (setupError != null) ...[
-              const SizedBox(height: 16),
-              Text(
-                setupError!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SignedInAccount extends StatelessWidget {
+class _AccountProfile extends StatefulWidget {
   final AuthController auth;
 
-  const _SignedInAccount({required this.auth});
+  const _AccountProfile({required this.auth});
 
   @override
-  Widget build(BuildContext context) {
-    final user = auth.user;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.account_circle_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text('Signed in', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(user?.email ?? 'No email available'),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: auth.isBusy ? null : auth.signOut,
-                icon: const Icon(Icons.logout),
-                label: const Text('Sign out'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  State<_AccountProfile> createState() => _AccountProfileState();
 }
 
-class _AuthForm extends StatefulWidget {
-  const _AuthForm();
+class _AccountProfileState extends State<_AccountProfile> {
+  final _profileFormKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _nameFocusNode = FocusNode();
+  String? _userId;
 
   @override
-  State<_AuthForm> createState() => _AuthFormState();
-}
-
-class _AuthFormState extends State<_AuthForm> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isCreatingAccount = false;
-  bool _isPasswordVisible = false;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _syncNameFromUser();
   }
 
-  Future<void> _submit() async {
-    final form = _formKey.currentState;
-    if (form == null || !form.validate()) return;
+  @override
+  void didUpdateWidget(covariant _AccountProfile oldWidget) {
+    super.didUpdateWidget(oldWidget);
 
-    final auth = context.read<AuthController>();
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
+    final user = widget.auth.user;
+    final displayName = user?.displayName ?? '';
+    final userChanged = user?.uid != _userId;
+    final savedNameChanged =
+        !_nameFocusNode.hasFocus && _nameController.text != displayName;
 
-    if (_isCreatingAccount) {
-      await auth.createAccount(email: email, password: password);
-    } else {
-      await auth.signIn(email: email, password: password);
+    if (userChanged || savedNameChanged) {
+      _syncNameFromUser();
     }
   }
 
-  String? _validateEmail(String? value) {
-    final email = value?.trim() ?? '';
-    if (email.isEmpty) return 'Required';
-    if (!email.contains('@')) return 'Enter a valid email';
-    return null;
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _nameFocusNode.dispose();
+    super.dispose();
   }
 
-  String? _validatePassword(String? value) {
-    final password = value ?? '';
-    if (password.isEmpty) return 'Required';
-    if (password.length < 6) return 'Use at least 6 characters';
+  void _syncNameFromUser() {
+    final user = widget.auth.user;
+    _userId = user?.uid;
+    _nameController.text = user?.displayName ?? '';
+  }
+
+  Future<void> _saveProfile() async {
+    final form = _profileFormKey.currentState;
+    if (form == null || !form.validate()) return;
+
+    await widget.auth.updateDisplayName(_nameController.text);
+    _nameFocusNode.unfocus();
+  }
+
+  String? _validateName(String? value) {
+    final name = value?.trim() ?? '';
+    if (name.isEmpty) return 'Required';
+    if (name.length < 2) return 'Use at least 2 characters';
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthController>();
-    final title = _isCreatingAccount ? 'Create account' : 'Sign in';
+    final auth = widget.auth;
+    final user = auth.user;
+    final displayName = user?.displayName?.trim();
+    final profileName = displayName == null || displayName.isEmpty
+        ? 'Shopper'
+        : displayName;
 
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 8),
-          Text(
-            _isCreatingAccount
-                ? 'Create an account with email and password.'
-                : 'Sign in to manage your shopping account.',
-          ),
-          const SizedBox(height: 24),
-          TextFormField(
-            controller: _emailController,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.email_outlined),
-            ),
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            validator: _validateEmail,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _passwordController,
-            decoration: InputDecoration(
-              labelText: 'Password',
-              prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: IconButton(
-                onPressed: () {
-                  setState(() => _isPasswordVisible = !_isPasswordVisible);
-                },
-                icon: Icon(
-                  _isPasswordVisible
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
+    return Column(
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.account_circle_outlined,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-                tooltip: _isPasswordVisible ? 'Hide password' : 'Show password',
+                const SizedBox(height: 16),
+                Text(
+                  profileName,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(user?.email ?? 'No email available'),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: auth.isBusy ? null : auth.signOut,
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Sign out'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _profileFormKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Profile',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _nameController,
+                    focusNode: _nameFocusNode,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                    ),
+                    textInputAction: TextInputAction.done,
+                    validator: _validateName,
+                    onChanged: (_) => auth.clearMessages(),
+                    onFieldSubmitted: (_) => _saveProfile(),
+                  ),
+                  if (auth.errorMessage != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      auth.errorMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ] else if (auth.successMessage != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      auth.successMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: auth.isBusy ? null : _saveProfile,
+                    icon: auth.isBusy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: const Text('Save profile'),
+                  ),
+                ],
               ),
             ),
-            obscureText: !_isPasswordVisible,
-            textInputAction: TextInputAction.done,
-            validator: _validatePassword,
-            onFieldSubmitted: (_) => _submit(),
           ),
-          if (auth.errorMessage != null) ...[
-            const SizedBox(height: 16),
-            Text(
-              auth.errorMessage!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: auth.isBusy ? null : _submit,
-            icon: auth.isBusy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(_isCreatingAccount ? Icons.person_add_alt : Icons.login),
-            label: Text(title),
-          ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: auth.isBusy
-                ? null
-                : () {
-                    auth.clearError();
-                    setState(() => _isCreatingAccount = !_isCreatingAccount);
-                  },
-            child: Text(
-              _isCreatingAccount
-                  ? 'Already have an account? Sign in'
-                  : 'New here? Create an account',
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

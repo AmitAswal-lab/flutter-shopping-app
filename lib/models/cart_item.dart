@@ -21,4 +21,22 @@ class CartItem {
       quantity: quantity ?? this.quantity,
     );
   }
+
+  Map<String, Object?> toJson() {
+    return {
+      'productId': productId,
+      'name': name,
+      'priceCents': priceCents,
+      'quantity': quantity,
+    };
+  }
+
+  factory CartItem.fromJson(Map<String, Object?> json) {
+    return CartItem(
+      productId: json['productId'] as String,
+      name: json['name'] as String,
+      priceCents: json['priceCents'] as int,
+      quantity: json['quantity'] as int,
+    );
+  }
 }
