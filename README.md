@@ -17,7 +17,7 @@ The app currently includes:
 - User-scoped cart, wishlist, and order history backed by Cloud Firestore
 - Separate sign-in/create-account flow and signed-in account profile UI
 - Firestore-backed delivery profile with checkout prefill
-- Centralized Material theme foundation
+- Centralized Material theme foundation with persisted local theme preference
 - Local product and screenshot assets
 
 ## Learning Focus
@@ -31,6 +31,7 @@ Current state-management decisions:
 - `Wishlist` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `OrderHistory` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `AuthController` owns Firebase auth/profile state and is exposed with `ChangeNotifierProvider`.
+- `AppPreferences` owns local app preferences and persists them with `SharedPreferences`.
 - `AuthGate` shows the auth flow before the main shopping shell when no user is signed in.
 - Cart, wishlist, and order history bind to the signed-in user's Firebase UID.
 - Delivery profile fields live on the signed-in user's Firestore document.
@@ -40,6 +41,7 @@ Current state-management decisions:
 - Checkout creates an order snapshot before clearing the cart so order history keeps its own copy of purchased items.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
 - Cart, wishlist, and order history are persisted under the signed-in user in Firestore.
+- Theme mode is stored locally on the device because it is an app preference, not user data.
 - Temporary screen state stays local to the screen.
 - The search text controller stays local to the search field because it is a UI controller, not app data.
 - Product detail quantity is local state because it only matters before the item is added to the cart.
@@ -99,6 +101,7 @@ lib/
     product.dart
     user_profile.dart
   providers/
+    app_preferences.dart
     cart.dart
     auth_controller.dart
     order_history.dart
@@ -117,6 +120,7 @@ lib/
     order_success_screen.dart
     product_detail_screen.dart
     product_list_screen.dart
+    settings_screen.dart
     wishlist_screen.dart
   theme/
     app_theme.dart

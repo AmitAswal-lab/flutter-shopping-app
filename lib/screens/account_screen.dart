@@ -5,6 +5,7 @@ import '../providers/auth_controller.dart';
 import '../providers/user_profile.dart';
 import 'account_profile_screen.dart';
 import 'delivery_profile_screen.dart';
+import 'settings_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -56,6 +57,17 @@ class AccountScreen extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => const DeliveryProfileScreen(),
                   ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            _AccountActionTile(
+              icon: Icons.settings_outlined,
+              title: 'Settings',
+              subtitle: 'Theme and app preferences',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 );
               },
             ),

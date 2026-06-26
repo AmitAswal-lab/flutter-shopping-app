@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'providers/app_preferences.dart';
 import 'providers/auth_controller.dart';
 import 'providers/cart.dart';
 import 'providers/order_history.dart';
@@ -16,14 +17,22 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final firebaseSetup = await FirebaseSetup.initialize();
+  final appPreferences = await AppPreferences.load();
 
-  runApp(ShoppingApp(firebaseSetup: firebaseSetup));
+  runApp(
+    ShoppingApp(firebaseSetup: firebaseSetup, appPreferences: appPreferences),
+  );
 }
 
 class ShoppingApp extends StatelessWidget {
   final FirebaseSetup firebaseSetup;
+  final AppPreferences appPreferences;
 
-  const ShoppingApp({super.key, required this.firebaseSetup});
+  const ShoppingApp({
+    super.key,
+    required this.firebaseSetup,
+    required this.appPreferences,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +42,7 @@ class ShoppingApp extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: appPreferences),
         ChangeNotifierProvider(create: (_) => Cart(firestore: firestore)),
         ChangeNotifierProvider(create: (_) => ProductFilter()),
         ChangeNotifierProvider(create: (_) => Wishlist(firestore: firestore)),
@@ -48,13 +58,19 @@ class ShoppingApp extends StatelessWidget {
               : AuthController.unconfigured(firebaseSetup.errorMessage),
         ),
       ],
-      child: UserDataBinder(
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Shopping App',
-          theme: AppTheme.dark,
-          home: const AuthGate(),
-        ),
+      child: Consumer<AppPreferences>(
+        builder: (context, preferences, child) {
+          return UserDataBinder(
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'Shopping App',
+              theme: AppTheme.light,
+              darkTheme: AppTheme.dark,
+              themeMode: preferences.themeMode,
+              home: const AuthGate(),
+            ),
+          );
+        },
       ),
     );
   }
