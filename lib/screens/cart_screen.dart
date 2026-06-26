@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/cart.dart';
+import '../providers/cart.dart';
 import '../models/cart_item.dart';
 import '../utils/money.dart';
 import 'checkout_screen.dart';
 
 class CartScreen extends StatelessWidget {
-  const CartScreen({super.key});
+  final VoidCallback? onBrowseProducts;
+
+  const CartScreen({super.key, this.onBrowseProducts});
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +31,7 @@ class CartScreen extends StatelessWidget {
       body: Consumer<Cart>(
         builder: (context, cart, child) {
           if (cart.items.isEmpty) {
-            return const Center(child: Text('Your cart is empty'));
+            return _EmptyCart(onBrowseProducts: onBrowseProducts);
           }
           return Column(
             children: [
@@ -48,6 +50,49 @@ class CartScreen extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _EmptyCart extends StatelessWidget {
+  final VoidCallback? onBrowseProducts;
+
+  const _EmptyCart({this.onBrowseProducts});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.shopping_cart_outlined,
+              size: 56,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Your cart is empty',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add products to start an order.',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onBrowseProducts ?? () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.storefront),
+              label: const Text('Browse products'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -113,8 +158,8 @@ class _SummaryBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.white24)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

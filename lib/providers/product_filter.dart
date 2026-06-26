@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import 'product.dart';
+import '../models/product.dart';
 
 class ProductFilter extends ChangeNotifier {
   String _query = '';
@@ -37,8 +37,9 @@ class ProductFilter extends ChangeNotifier {
   List<Product> applyTo(List<Product> products) {
     return products
         .where((product) {
-          final searchableText = '${product.name} ${product.category.label}'
-              .toLowerCase();
+          final searchableText =
+              '${product.brand} ${product.name} ${product.description} ${product.category.label}'
+                  .toLowerCase();
           final matchesQuery =
               _query.isEmpty || searchableText.contains(_query);
           final matchesCategory =

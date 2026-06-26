@@ -8,23 +8,16 @@ The goal of this project is to build a realistic shopping flow step by step whil
 
 The app currently includes:
 
-- Product listing screen with a responsive product card grid
-- Product search by product name or category
-- Category filtering for products
-- Local product image assets
-- Product detail screen
-- Wishlist/favorites screen
-- Favorite toggles from product cards and product detail
-- Quantity selector on the product detail screen
-- Add-to-cart behavior from both the product list and product detail screens
-- Cart badge with live item count
-- Cart screen with quantity controls
-- Cart total calculation
-- Clear cart action
-- Checkout screen with basic form validation
-- In-memory order history screen
-- Order placement flow that clears the cart
-- Order success screen after checkout
+- Product browsing with searchable, filterable product cards
+- Expanded local product catalog with brand, rating, stock, and description data
+- Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
+- Product detail pages with quantity selection and add-to-cart behavior
+- Cart and checkout flow with order confirmation
+- Wishlist/favorites experience
+- User-scoped cart, wishlist, and order history backed by Cloud Firestore
+- Separate sign-in/create-account flow and signed-in account profile UI
+- Centralized Material theme foundation
+- Local product and screenshot assets
 
 ## Learning Focus
 
@@ -36,12 +29,15 @@ Current state-management decisions:
 - `ProductFilter` is shared catalog state and is exposed with `ChangeNotifierProvider`.
 - `Wishlist` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `OrderHistory` is shared app state and is exposed with `ChangeNotifierProvider`.
+- `AuthController` owns Firebase auth/profile state and is exposed with `ChangeNotifierProvider`.
+- `AuthGate` shows the auth flow before the main shopping shell when no user is signed in.
+- Cart, wishlist, and order history bind to the signed-in user's Firebase UID.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
 - Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
 - Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
 - Checkout creates an order snapshot before clearing the cart so order history keeps its own copy of purchased items.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
-- Order history is currently in-memory; persistence will be added later.
+- Cart, wishlist, and order history are persisted under the signed-in user in Firestore.
 - Temporary screen state stays local to the screen.
 - The search text controller stays local to the search field because it is a UI controller, not app data.
 - Product detail quantity is local state because it only matters before the item is added to the cart.
@@ -56,29 +52,33 @@ Screenshots will be added as the app reaches meaningful feature milestones. Sinc
 
 Current milestone screenshots:
 
-| Product Grid | Product Detail |
-| --- | --- |
+| Product Grid                                                                                                                 | Product Detail                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | <img width="240" alt="Product grid" src="https://github.com/user-attachments/assets/579d8825-a399-4c3d-8f8b-2d50723952bd" /> | <img width="240" alt="Product detail" src="https://github.com/user-attachments/assets/ade50b95-8dfc-405c-8432-626e03cad177" /> |
 
-| Cart | Checkout |
-| --- | --- |
+| Cart                                                                                                                 | Checkout                                                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | <img width="240" alt="Cart" src="https://github.com/user-attachments/assets/70b41f3f-9f39-43d8-864e-26f831438534" /> | <img width="240" alt="Checkout" src="https://github.com/user-attachments/assets/a78966bd-c2e2-4fb4-97c5-004341afa679" /> |
 
-| Order Success |
-| --- |
+| Order Success                                                                      |
+| ---------------------------------------------------------------------------------- |
 | <img width="240" alt="Order success" src="assets/screenshots/order_success.png" /> |
 
-| Search and Filtering | Wishlist |
-| --- | --- |
+| Search and Filtering                                                                         | Wishlist                                                                 |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | <img width="240" alt="Search and filtering" src="assets/screenshots/search_filtering.png" /> | <img width="240" alt="Wishlist" src="assets/screenshots/wishlist.png" /> |
 
-| Product Detail Favorite |
-| --- |
+| Product Detail Favorite                                                                                |
+| ------------------------------------------------------------------------------------------------------ |
 | <img width="240" alt="Product detail favorite" src="assets/screenshots/product_detail_favorite.png" /> |
 
-| Order History |
-| --- |
+| Order History                                                                      |
+| ---------------------------------------------------------------------------------- |
 | <img width="240" alt="Order history" src="assets/screenshots/order_history.png" /> |
+
+| Clean Navigation                                                                         |
+| ---------------------------------------------------------------------------------------- |
+| <img width="240" alt="Clean navigation" src="assets/screenshots/clean_navigation.png" /> |
 
 Suggested location for future screenshots:
 
@@ -92,21 +92,28 @@ assets/screenshots/
 lib/
   main.dart
   models/
-    cart.dart
     cart_item.dart
     order.dart
-    order_history.dart
     product.dart
+  providers/
+    cart.dart
+    auth_controller.dart
+    order_history.dart
     product_filter.dart
     wishlist.dart
   screens/
+    account_screen.dart
+    auth_screen.dart
     cart_screen.dart
     checkout_screen.dart
+    main_shell_screen.dart
     order_history_screen.dart
     order_success_screen.dart
     product_detail_screen.dart
     product_list_screen.dart
     wishlist_screen.dart
+  theme/
+    app_theme.dart
   utils/
     date_time_format.dart
     money.dart
@@ -118,20 +125,6 @@ assets/
   products/
   screenshots/
 ```
-
-## Roadmap
-
-Planned next features:
-
-- Add product sorting by price and name
-- Move product data behind a repository class
-- Add async product loading with loading, empty, and error states
-- Persist the cart locally between app launches
-- Improve checkout with phone number, delivery notes, and payment method selection
-- Add stock quantity rules
-- Add discount code logic
-- Add a fake authentication flow
-- Later, connect product data to an API or backend service
 
 ## Git Workflow
 
@@ -161,3 +154,34 @@ Analyze the project:
 ```bash
 flutter analyze
 ```
+
+## Firebase Setup
+
+Firebase email/password authentication is wired in the app.
+Cloud Firestore is used for user-scoped cart, wishlist, and order history data.
+
+The iOS Firebase app is configured with:
+
+```text
+Bundle ID: com.example.shoppingApp
+Config file: ios/Runner/GoogleService-Info.plist
+```
+
+Email/Password sign-in must be enabled in the Firebase Authentication console.
+Cloud Firestore must also be enabled for the Firebase project.
+
+User data is stored under:
+
+```text
+users/{uid}/cartItems/{productId}
+users/{uid}/wishlistItems/{productId}
+users/{uid}/orders/{orderId}
+```
+
+Android Firebase setup is not wired yet because the provided Android Firebase app uses:
+
+```text
+Package name: com.example.shoppingApp
+```
+
+The current Android application ID is `com.example.shopping_app`.

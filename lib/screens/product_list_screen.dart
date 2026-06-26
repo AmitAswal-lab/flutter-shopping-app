@@ -1,15 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/cart.dart';
-import '../models/order_history.dart';
 import '../models/product.dart';
-import '../models/product_filter.dart';
-import '../models/wishlist.dart';
+import '../providers/product_filter.dart';
 import '../widgets/product_card.dart';
-import 'cart_screen.dart';
-import 'order_history_screen.dart';
-import 'wishlist_screen.dart';
 
 class ProductListScreen extends StatelessWidget {
   const ProductListScreen({super.key});
@@ -17,10 +11,7 @@ class ProductListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Shop'),
-        actions: const [_OrderHistoryBadge(), _WishlistBadge(), _CartBadge()],
-      ),
+      appBar: AppBar(title: const Text('Shop')),
       body: const _ProductCatalog(),
     );
   }
@@ -52,7 +43,7 @@ class _ProductCatalog extends StatelessWidget {
                 maxCrossAxisExtent: 240,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 0.72,
+                childAspectRatio: 0.52,
               ),
               itemBuilder: (context, index) {
                 return ProductCard(product: visibleProducts[index]);
@@ -158,8 +149,6 @@ class _ProductSearchFieldState extends State<_ProductSearchField> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return TextField(
       controller: _controller,
       textInputAction: TextInputAction.search,
@@ -173,12 +162,6 @@ class _ProductSearchFieldState extends State<_ProductSearchField> {
                 icon: const Icon(Icons.close),
                 tooltip: 'Clear search',
               ),
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
       ),
     );
   }
@@ -250,69 +233,6 @@ class _EmptyProductResults extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _OrderHistoryBadge extends StatelessWidget {
-  const _OrderHistoryBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final count = context.select<OrderHistory, int>((history) => history.count);
-    return IconButton(
-      icon: Badge(
-        isLabelVisible: count > 0,
-        label: Text('$count'),
-        child: const Icon(Icons.receipt_long_outlined),
-      ),
-      onPressed: () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const OrderHistoryScreen()));
-      },
-    );
-  }
-}
-
-class _WishlistBadge extends StatelessWidget {
-  const _WishlistBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final count = context.select<Wishlist, int>((wishlist) => wishlist.count);
-    return IconButton(
-      icon: Badge(
-        isLabelVisible: count > 0,
-        label: Text('$count'),
-        child: const Icon(Icons.favorite_border),
-      ),
-      onPressed: () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const WishlistScreen()));
-      },
-    );
-  }
-}
-
-class _CartBadge extends StatelessWidget {
-  const _CartBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final count = context.select<Cart, int>((cart) => cart.totalCount);
-    return IconButton(
-      icon: Badge(
-        isLabelVisible: count > 0,
-        label: Text('$count'),
-        child: const Icon(Icons.shopping_cart_outlined),
-      ),
-      onPressed: () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const CartScreen()));
-      },
     );
   }
 }

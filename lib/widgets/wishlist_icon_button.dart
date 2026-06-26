@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/product.dart';
-import '../models/wishlist.dart';
+import '../providers/wishlist.dart';
 
 class WishlistIconButton extends StatelessWidget {
   final Product product;
@@ -20,27 +20,33 @@ class WishlistIconButton extends StatelessWidget {
       (wishlist) => wishlist.isFavorite(product.id),
     );
     final colorScheme = Theme.of(context).colorScheme;
+    const favoriteColor = Color(0xFFFF7A90);
+    const favoriteContainerColor = Color(0xFF4D1722);
 
     final icon = Icon(isFavorite ? Icons.favorite : Icons.favorite_border);
     final tooltip = isFavorite ? 'Remove from wishlist' : 'Add to wishlist';
-
-    void toggleFavorite() {
+    void onPressed() {
       context.read<Wishlist>().toggle(product.id);
     }
 
     if (filled) {
       return IconButton.filledTonal(
-        onPressed: toggleFavorite,
+        onPressed: onPressed,
         icon: icon,
-        color: isFavorite ? colorScheme.primary : null,
+        color: isFavorite ? favoriteColor : null,
+        style: IconButton.styleFrom(
+          backgroundColor: isFavorite
+              ? favoriteContainerColor
+              : colorScheme.surfaceContainerHighest,
+        ),
         tooltip: tooltip,
       );
     }
 
     return IconButton(
-      onPressed: toggleFavorite,
+      onPressed: onPressed,
       icon: icon,
-      color: isFavorite ? colorScheme.primary : null,
+      color: isFavorite ? favoriteColor : null,
       tooltip: tooltip,
     );
   }

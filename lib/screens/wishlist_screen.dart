@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/product.dart';
-import '../models/wishlist.dart';
+import '../providers/wishlist.dart';
 import '../widgets/product_card.dart';
 
 class WishlistScreen extends StatelessWidget {
-  const WishlistScreen({super.key});
+  final VoidCallback? onBrowseProducts;
+
+  const WishlistScreen({super.key, this.onBrowseProducts});
 
   @override
   Widget build(BuildContext context) {
@@ -25,13 +27,15 @@ class WishlistScreen extends StatelessWidget {
             ),
         ],
       ),
-      body: const _WishlistBody(),
+      body: _WishlistBody(onBrowseProducts: onBrowseProducts),
     );
   }
 }
 
 class _WishlistBody extends StatelessWidget {
-  const _WishlistBody();
+  final VoidCallback? onBrowseProducts;
+
+  const _WishlistBody({this.onBrowseProducts});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +44,7 @@ class _WishlistBody extends StatelessWidget {
     );
 
     if (favoriteProducts.isEmpty) {
-      return const _EmptyWishlist();
+      return _EmptyWishlist(onBrowseProducts: onBrowseProducts);
     }
 
     return GridView.builder(
@@ -50,7 +54,7 @@ class _WishlistBody extends StatelessWidget {
         maxCrossAxisExtent: 240,
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
-        childAspectRatio: 0.72,
+        childAspectRatio: 0.52,
       ),
       itemBuilder: (context, index) {
         return ProductCard(product: favoriteProducts[index]);
@@ -60,7 +64,9 @@ class _WishlistBody extends StatelessWidget {
 }
 
 class _EmptyWishlist extends StatelessWidget {
-  const _EmptyWishlist();
+  final VoidCallback? onBrowseProducts;
+
+  const _EmptyWishlist({this.onBrowseProducts});
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +95,7 @@ class _EmptyWishlist extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: onBrowseProducts ?? () => Navigator.of(context).pop(),
               icon: const Icon(Icons.storefront),
               label: const Text('Browse products'),
             ),

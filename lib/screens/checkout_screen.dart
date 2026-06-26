@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/cart.dart';
+import '../providers/cart.dart';
 import '../models/cart_item.dart';
-import '../models/order_history.dart';
+import '../providers/order_history.dart';
 import '../utils/money.dart';
 import 'order_success_screen.dart';
 
@@ -18,6 +18,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
+  bool _isPlacingOrder = false;
 
   @override
   void dispose() {
@@ -26,22 +27,40 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  void _placeOrder() {
+  Future<void> _placeOrder() async {
     final form = _formKey.currentState;
-    if (form == null || !form.validate()) return;
+    if (_isPlacingOrder || form == null || !form.validate()) return;
 
     final cart = context.read<Cart>();
     final totalPriceCents = cart.totalPriceCents;
     final customerName = _nameController.text.trim();
     final deliveryAddress = _addressController.text.trim();
     final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
 
-    context.read<OrderHistory>().add(
-      customerName: customerName,
-      deliveryAddress: deliveryAddress,
-      items: cart.items,
-    );
-    cart.clear();
+    setState(() => _isPlacingOrder = true);
+
+    try {
+      await context.read<OrderHistory>().add(
+        customerName: customerName,
+        deliveryAddress: deliveryAddress,
+        items: cart.items,
+      );
+      await cart.clear();
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() => _isPlacingOrder = false);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Could not place order. Try again.')),
+        );
+      return;
+    }
+
+    if (!mounted) return;
+
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(
         builder: (_) => OrderSuccessScreen(
@@ -84,7 +103,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           TextFormField(
                             controller: _nameController,
                             decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
                               labelText: 'Full name',
                             ),
                             textInputAction: TextInputAction.next,
@@ -94,7 +112,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           TextFormField(
                             controller: _addressController,
                             decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
                               labelText: 'Delivery address',
                             ),
                             maxLines: 3,
@@ -103,8 +120,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           ),
                           const SizedBox(height: 24),
                           FilledButton.icon(
-                            onPressed: _placeOrder,
-                            icon: const Icon(Icons.check_circle_outline),
+                            onPressed: _isPlacingOrder ? null : _placeOrder,
+                            icon: _isPlacingOrder
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.check_circle_outline),
                             label: const Text('Place order'),
                           ),
                         ],
