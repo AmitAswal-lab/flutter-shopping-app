@@ -7,6 +7,7 @@ import 'providers/auth_controller.dart';
 import 'providers/cart.dart';
 import 'providers/order_history.dart';
 import 'providers/product_filter.dart';
+import 'providers/user_profile.dart';
 import 'providers/wishlist.dart';
 import 'screens/auth_screen.dart';
 import 'screens/main_shell_screen.dart';
@@ -37,6 +38,9 @@ class ShoppingApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => Wishlist(firestore: firestore)),
         ChangeNotifierProvider(
           create: (_) => OrderHistory(firestore: firestore),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => UserProfileController(firestore: firestore),
         ),
         ChangeNotifierProvider(
           create: (_) => firebaseSetup.isConfigured
@@ -92,6 +96,7 @@ class _UserDataBinderState extends State<UserDataBinder> {
     context.read<Cart>().bindUser(userId);
     context.read<Wishlist>().bindUser(userId);
     context.read<OrderHistory>().bindUser(userId);
+    context.read<UserProfileController>().bindUser(userId);
   }
 
   @override

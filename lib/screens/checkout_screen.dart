@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/cart.dart';
 import '../models/cart_item.dart';
+import '../models/user_profile.dart';
+import '../providers/auth_controller.dart';
+import '../providers/cart.dart';
 import '../providers/order_history.dart';
+import '../providers/user_profile.dart';
 import '../utils/money.dart';
 import 'order_success_screen.dart';
 
@@ -16,13 +19,32 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
   final _addressController = TextEditingController();
   bool _isPlacingOrder = false;
+  bool _hasPrefilledProfile = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final userProfile = context.watch<UserProfileController>();
+    final profile = userProfile.profile;
+
+    if (_hasPrefilledProfile ||
+        userProfile.isLoading ||
+        !profile.hasDeliveryDetails) {
+      return;
+    }
+
+    if (_addressController.text.isEmpty &&
+        profile.deliveryAddress.trim().isNotEmpty) {
+      _addressController.text = profile.deliveryAddress;
+    }
+    _hasPrefilledProfile = true;
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
     _addressController.dispose();
     super.dispose();
   }
@@ -32,8 +54,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (_isPlacingOrder || form == null || !form.validate()) return;
 
     final cart = context.read<Cart>();
+    final auth = context.read<AuthController>();
+    final userProfile = context.read<UserProfileController>().profile;
     final totalPriceCents = cart.totalPriceCents;
-    final customerName = _nameController.text.trim();
+    final customerName = _customerNameForOrder(auth, userProfile);
     final deliveryAddress = _addressController.text.trim();
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -72,6 +96,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  String _customerNameForOrder(AuthController auth, UserProfile userProfile) {
+    final fullName = userProfile.fullName.trim();
+    if (fullName.isNotEmpty) return fullName;
+
+    final displayName = auth.user?.displayName?.trim();
+    if (displayName != null && displayName.isNotEmpty) return displayName;
+
+    final email = auth.user?.email?.trim();
+    if (email != null && email.isNotEmpty) return email;
+
+    return 'Shopper';
+  }
+
   String? _requiredField(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Required';
@@ -100,15 +137,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          TextFormField(
-                            controller: _nameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Full name',
-                            ),
-                            textInputAction: TextInputAction.next,
-                            validator: _requiredField,
-                          ),
-                          const SizedBox(height: 16),
                           TextFormField(
                             controller: _addressController,
                             decoration: const InputDecoration(
