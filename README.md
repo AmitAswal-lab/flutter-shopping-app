@@ -16,6 +16,7 @@ The app currently includes:
 - Wishlist/favorites experience
 - User-scoped cart, wishlist, and order history backed by Cloud Firestore
 - Separate sign-in/create-account flow and signed-in account profile UI
+- Firestore-backed delivery profile with checkout prefill
 - Centralized Material theme foundation
 - Local product and screenshot assets
 
@@ -32,6 +33,7 @@ Current state-management decisions:
 - `AuthController` owns Firebase auth/profile state and is exposed with `ChangeNotifierProvider`.
 - `AuthGate` shows the auth flow before the main shopping shell when no user is signed in.
 - Cart, wishlist, and order history bind to the signed-in user's Firebase UID.
+- Delivery profile fields live on the signed-in user's Firestore document.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
 - Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
 - Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
@@ -95,17 +97,21 @@ lib/
     cart_item.dart
     order.dart
     product.dart
+    user_profile.dart
   providers/
     cart.dart
     auth_controller.dart
     order_history.dart
     product_filter.dart
+    user_profile.dart
     wishlist.dart
   screens/
     account_screen.dart
+    account_profile_screen.dart
     auth_screen.dart
     cart_screen.dart
     checkout_screen.dart
+    delivery_profile_screen.dart
     main_shell_screen.dart
     order_history_screen.dart
     order_success_screen.dart
@@ -176,6 +182,12 @@ User data is stored under:
 users/{uid}/cartItems/{productId}
 users/{uid}/wishlistItems/{productId}
 users/{uid}/orders/{orderId}
+```
+
+Delivery profile fields are stored directly on:
+
+```text
+users/{uid}
 ```
 
 Android Firebase setup is not wired yet because the provided Android Firebase app uses:
