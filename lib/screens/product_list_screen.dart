@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/product.dart';
 import '../providers/product_filter.dart';
+import '../screens/product_search_screen.dart';
 import '../widgets/product_card.dart';
 
 class ProductListScreen extends StatelessWidget {
@@ -98,70 +99,65 @@ class _SearchAndFilterHeader extends StatelessWidget {
   }
 }
 
-class _ProductSearchField extends StatefulWidget {
+class _ProductSearchField extends StatelessWidget {
   const _ProductSearchField();
 
-  @override
-  State<_ProductSearchField> createState() => _ProductSearchFieldState();
-}
-
-class _ProductSearchFieldState extends State<_ProductSearchField> {
-  final _controller = TextEditingController();
-  ProductFilter? _filter;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_handleSearchChanged);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final nextFilter = context.read<ProductFilter>();
-    if (_filter == nextFilter) return;
-
-    _filter?.removeListener(_syncFromFilter);
-    _filter = nextFilter..addListener(_syncFromFilter);
-    _syncFromFilter();
-  }
-
-  @override
-  void dispose() {
-    _filter?.removeListener(_syncFromFilter);
-    _controller
-      ..removeListener(_handleSearchChanged)
-      ..dispose();
-    super.dispose();
-  }
-
-  void _handleSearchChanged() {
-    context.read<ProductFilter>().setQuery(_controller.text);
-    setState(() {});
-  }
-
-  void _syncFromFilter() {
-    final filterQuery = _filter?.query ?? '';
-    if (filterQuery.isEmpty && _controller.text.isNotEmpty) {
-      _controller.clear();
-    }
+  void _openSearch(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const ProductSearchScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: _controller,
-      textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
-        hintText: 'Search products',
-        prefixIcon: const Icon(Icons.search),
-        suffixIcon: _controller.text.isEmpty
-            ? null
-            : IconButton(
-                onPressed: _controller.clear,
-                icon: const Icon(Icons.close),
-                tooltip: 'Clear search',
+    final query = context.select<ProductFilter, String>(
+      (filter) => filter.query,
+    );
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasQuery = query.isNotEmpty;
+
+    return Material(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: () => _openSearch(context),
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          height: 56,
+          child: Row(
+            children: [
+              const SizedBox(width: 12),
+              Icon(Icons.search, color: colorScheme.onSurfaceVariant),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  hasQuery ? query : 'Search products',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: hasQuery
+                        ? colorScheme.onSurface
+                        : colorScheme.outline,
+                  ),
+                ),
               ),
+              if (hasQuery)
+                IconButton(
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    context.read<ProductFilter>().setQuery('');
+                  },
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Clear search',
+                ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ),
       ),
     );
   }
