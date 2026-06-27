@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/product.dart';
+import '../providers/product_catalog.dart';
 import '../providers/product_filter.dart';
 import '../screens/product_search_screen.dart';
 import '../widgets/product_card.dart';
@@ -23,13 +25,29 @@ class _ProductCatalog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visibleProducts = context.select<ProductFilter, List<Product>>(
-      (filter) => filter.applyTo(kProducts),
+    final catalog = context.watch<ProductCatalog>();
+
+    if (catalog.isLoading && catalog.products.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (catalog.errorMessage != null && catalog.products.isEmpty) {
+      return _CatalogError(message: catalog.errorMessage!);
+    }
+
+    if (catalog.products.isEmpty) {
+      return const _EmptyCatalog();
+    }
+
+    final visibleProducts = context.watch<ProductFilter>().applyTo(
+      catalog.products,
     );
 
     return CustomScrollView(
       slivers: [
-        const SliverToBoxAdapter(child: _SearchAndFilterHeader()),
+        SliverToBoxAdapter(
+          child: _SearchAndFilterHeader(visibleCount: visibleProducts.length),
+        ),
         if (visibleProducts.isEmpty)
           const SliverFillRemaining(
             hasScrollBody: false,
@@ -57,13 +75,12 @@ class _ProductCatalog extends StatelessWidget {
 }
 
 class _SearchAndFilterHeader extends StatelessWidget {
-  const _SearchAndFilterHeader();
+  const _SearchAndFilterHeader({required this.visibleCount});
+
+  final int visibleCount;
 
   @override
   Widget build(BuildContext context) {
-    final visibleCount = context.select<ProductFilter, int>(
-      (filter) => filter.applyTo(kProducts).length,
-    );
     final hasActiveFilters = context.select<ProductFilter, bool>(
       (filter) => filter.hasActiveFilters,
     );
@@ -94,6 +111,101 @@ class _SearchAndFilterHeader extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CatalogError extends StatelessWidget {
+  const _CatalogError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return _CatalogMessage(
+      icon: Icons.cloud_off,
+      title: 'Could not load products',
+      message: message,
+      action: FilledButton.icon(
+        onPressed: context.read<ProductCatalog>().load,
+        icon: const Icon(Icons.refresh),
+        label: const Text('Try again'),
+      ),
+    );
+  }
+}
+
+class _EmptyCatalog extends StatelessWidget {
+  const _EmptyCatalog();
+
+  @override
+  Widget build(BuildContext context) {
+    final catalog = context.watch<ProductCatalog>();
+
+    return _CatalogMessage(
+      icon: Icons.inventory_2_outlined,
+      title: 'The catalog is empty',
+      message: kDebugMode
+          ? 'Add the bundled sample products to Firestore to continue.'
+          : 'Products will appear here when they become available.',
+      action: kDebugMode
+          ? FilledButton.icon(
+              onPressed: catalog.isSeeding ? null : catalog.seedSampleProducts,
+              icon: catalog.isSeeding
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.cloud_upload_outlined),
+              label: Text(
+                catalog.isSeeding
+                    ? 'Adding products...'
+                    : 'Add sample products',
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+class _CatalogMessage extends StatelessWidget {
+  const _CatalogMessage({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.action,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 56, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            if (action != null) ...[const SizedBox(height: 16), action!],
+          ],
+        ),
       ),
     );
   }

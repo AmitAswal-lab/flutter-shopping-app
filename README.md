@@ -9,7 +9,7 @@ The goal of this project is to build a realistic shopping flow step by step whil
 The app currently includes:
 
 - Product browsing with searchable, filterable product cards
-- Expanded local product catalog with brand, rating, stock, and description data
+- Firestore product catalog with brand, rating, stock, and description data
 - Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
 - Product detail pages with quantity selection and add-to-cart behavior
 - Cart and checkout flow with order confirmation
@@ -29,6 +29,7 @@ Current state-management decisions:
 
 - `Cart` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `ProductFilter` is shared catalog state and is exposed with `ChangeNotifierProvider`.
+- `ProductCatalog` owns the Firestore product subscription and its loading, empty, and error states.
 - `Wishlist` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `OrderHistory` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `AuthController` owns Firebase auth/profile state and is exposed with `ChangeNotifierProvider`.
@@ -41,6 +42,7 @@ Current state-management decisions:
 - Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
 - Checkout creates an order snapshot before clearing the cart so order history keeps its own copy of purchased items.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
+- Shop and Wishlist resolve products from the same Firestore-backed catalog.
 - Cart, wishlist, and order history are persisted under the signed-in user in Firestore.
 - Theme mode and recent searches are stored locally on the device because they are app preferences, not user data.
 - Temporary screen state stays local to the screen.
@@ -106,6 +108,7 @@ lib/
     cart.dart
     auth_controller.dart
     order_history.dart
+    product_catalog.dart
     product_filter.dart
     user_profile.dart
     wishlist.dart
@@ -133,6 +136,7 @@ lib/
     wishlist_icon_button.dart
 
 assets/
+  data/
   products/
   screenshots/
 ```
@@ -169,7 +173,8 @@ flutter analyze
 ## Firebase Setup
 
 Firebase email/password authentication is wired in the app.
-Cloud Firestore is used for user-scoped cart, wishlist, and order history data.
+Cloud Firestore is used for the shared product catalog and user-scoped cart,
+wishlist, and order history data.
 
 The iOS Firebase app is configured with:
 
@@ -187,6 +192,27 @@ User data is stored under:
 users/{uid}/cartItems/{productId}
 users/{uid}/wishlistItems/{productId}
 users/{uid}/orders/{orderId}
+```
+
+Shared product data is stored under:
+
+```text
+products/{productId}
+```
+
+When the `products` collection is empty, a debug build shows an **Add sample
+products** action on the Shop screen. It uploads the bundled
+`assets/data/products_seed.json` records once. This requires temporary product
+write access while seeding.
+
+After seeding, product documents should be readable by signed-in users but not
+writable by the shopping app:
+
+```text
+match /products/{productId} {
+  allow read: if request.auth != null;
+  allow write: if false;
+}
 ```
 
 Delivery profile fields are stored directly on:
