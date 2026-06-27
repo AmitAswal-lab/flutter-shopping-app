@@ -18,6 +18,7 @@ The app currently includes:
 - Separate sign-in/create-account flow and signed-in account profile UI
 - Firestore-backed delivery profile with checkout prefill
 - Centralized Material theme foundation with persisted local theme preference
+- Local recent search history with `SharedPreferences`
 - Local product and screenshot assets
 
 ## Learning Focus
@@ -41,7 +42,7 @@ Current state-management decisions:
 - Checkout creates an order snapshot before clearing the cart so order history keeps its own copy of purchased items.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
 - Cart, wishlist, and order history are persisted under the signed-in user in Firestore.
-- Theme mode is stored locally on the device because it is an app preference, not user data.
+- Theme mode and recent searches are stored locally on the device because they are app preferences, not user data.
 - Temporary screen state stays local to the screen.
 - The search text controller stays local to the search field because it is a UI controller, not app data.
 - Product detail quantity is local state because it only matters before the item is added to the cart.
