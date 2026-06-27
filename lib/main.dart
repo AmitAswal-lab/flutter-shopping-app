@@ -7,6 +7,7 @@ import 'providers/app_preferences.dart';
 import 'providers/auth_controller.dart';
 import 'providers/cart.dart';
 import 'providers/order_history.dart';
+import 'providers/product_catalog.dart';
 import 'providers/product_filter.dart';
 import 'providers/user_profile.dart';
 import 'providers/wishlist.dart';
@@ -44,6 +45,9 @@ class ShoppingApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: appPreferences),
         ChangeNotifierProvider(create: (_) => Cart(firestore: firestore)),
+        ChangeNotifierProvider(
+          create: (_) => ProductCatalog(firestore: firestore),
+        ),
         ChangeNotifierProvider(create: (_) => ProductFilter()),
         ChangeNotifierProvider(create: (_) => Wishlist(firestore: firestore)),
         ChangeNotifierProvider(
