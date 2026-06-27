@@ -10,6 +10,7 @@ The app currently includes:
 
 - Product browsing with searchable, filterable product cards
 - Firestore product catalog with brand, rating, stock, and description data
+- Remote product image URLs with bundled asset fallbacks
 - Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
 - Product detail pages with quantity selection and add-to-cart behavior
 - Cart and checkout flow with order confirmation
@@ -43,6 +44,7 @@ Current state-management decisions:
 - Checkout creates an order snapshot before clearing the cart so order history keeps its own copy of purchased items.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
 - Shop and Wishlist resolve products from the same Firestore-backed catalog.
+- Product cards and details use one `ProductImage` widget for remote loading and local fallback behavior.
 - Cart, wishlist, and order history are persisted under the signed-in user in Firestore.
 - Theme mode and recent searches are stored locally on the device because they are app preferences, not user data.
 - Temporary screen state stays local to the screen.
@@ -133,6 +135,7 @@ lib/
     money.dart
   widgets/
     product_card.dart
+    product_image.dart
     wishlist_icon_button.dart
 
 assets/
@@ -200,18 +203,59 @@ Shared product data is stored under:
 products/{productId}
 ```
 
-When the `products` collection is empty, a debug build shows an **Add sample
-products** action on the Shop screen. It uploads the bundled
-`assets/data/products_seed.json` records once. This requires temporary product
-write access while seeding.
+Each product can include an optional HTTPS image URL:
 
-After seeding, product documents should be readable by signed-in users but not
+```text
+imageUrl: "https://..."
+```
+
+When `imageUrl` is missing, still loading, or fails, the app displays the
+bundled `imageAsset` instead. This keeps the catalog usable while remote media
+is being configured.
+
+When the `products` collection is empty, a debug build shows an **Add sample
+products** action on the Shop screen. The same batch operation is available
+from **Account → Settings → Developer → Sync catalog** in debug builds.
+
+The sync reads every record from `assets/data/products_seed.json` and
+batch-merges it into Firestore by product ID. Catalog content and image URLs
+can therefore be updated in one source file and synchronized without manually
+editing each Firestore document. Temporary product write access is required
+while syncing.
+
+After syncing, product documents should be readable by signed-in users but not
 writable by the shopping app:
 
 ```text
 match /products/{productId} {
   allow read: if request.auth != null;
   allow write: if false;
+}
+```
+
+### Firebase Storage
+
+Cloud Storage currently requires the Firebase project to use the Blaze plan.
+After creating the default bucket:
+
+1. Upload the four bundled product images.
+2. Copy each file's download URL into the appropriate `imageUrl` entries in
+   `assets/data/products_seed.json`.
+3. Use **Sync catalog** in the debug Settings screen.
+
+The current sample catalog already contains the four configured download URLs
+and reuses them across its twelve products.
+
+Product images are public catalog media, while client uploads remain disabled:
+
+```text
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /products/{productImage=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
 }
 ```
 

@@ -151,15 +151,15 @@ class _EmptyCatalog extends StatelessWidget {
           : 'Products will appear here when they become available.',
       action: kDebugMode
           ? FilledButton.icon(
-              onPressed: catalog.isSeeding ? null : catalog.seedSampleProducts,
-              icon: catalog.isSeeding
+              onPressed: catalog.isSyncing ? null : catalog.syncSampleProducts,
+              icon: catalog.isSyncing
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.cloud_upload_outlined),
               label: Text(
-                catalog.isSeeding
+                catalog.isSyncing
                     ? 'Adding products...'
                     : 'Add sample products',
               ),

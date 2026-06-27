@@ -17,6 +17,7 @@ class Product {
   final int priceCents;
   final int listPriceCents;
   final String imageAsset;
+  final String? imageUrl;
   final ProductCategory category;
   final double rating;
   final int reviewCount;
@@ -30,6 +31,7 @@ class Product {
     required this.priceCents,
     required this.listPriceCents,
     required this.imageAsset,
+    this.imageUrl,
     required this.category,
     required this.rating,
     required this.reviewCount,
@@ -52,6 +54,7 @@ class Product {
       priceCents: _readInt(json, 'priceCents'),
       listPriceCents: _readInt(json, 'listPriceCents'),
       imageAsset: _readString(json, 'imageAsset'),
+      imageUrl: _readOptionalUrl(json, 'imageUrl'),
       category: _readCategory(json['category']),
       rating: _readDouble(json, 'rating'),
       reviewCount: _readInt(json, 'reviewCount'),
@@ -60,7 +63,7 @@ class Product {
   }
 
   Map<String, Object> toJson() {
-    return {
+    final json = <String, Object>{
       'brand': brand,
       'name': name,
       'description': description,
@@ -72,6 +75,11 @@ class Product {
       'reviewCount': reviewCount,
       'stockCount': stockCount,
     };
+    final remoteImageUrl = imageUrl;
+    if (remoteImageUrl != null) {
+      json['imageUrl'] = remoteImageUrl;
+    }
+    return json;
   }
 
   static String _readString(Map<String, dynamic> json, String key) {
@@ -90,6 +98,23 @@ class Product {
     final value = json[key];
     if (value is num) return value.toDouble();
     throw FormatException('Product field "$key" must be a number.');
+  }
+
+  static String? _readOptionalUrl(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value == null || value == '') return null;
+    if (value is! String) {
+      throw FormatException('Product field "$key" must be a string.');
+    }
+
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        !uri.hasAuthority ||
+        !{'http', 'https'}.contains(uri.scheme)) {
+      throw FormatException('Product field "$key" must be an HTTP URL.');
+    }
+
+    return value;
   }
 
   static ProductCategory _readCategory(Object? value) {
