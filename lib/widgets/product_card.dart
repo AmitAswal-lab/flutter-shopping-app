@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../screens/product_detail_screen.dart';
 import '../utils/money.dart';
+import 'product_image.dart';
 import 'wishlist_icon_button.dart';
 
 class ProductCard extends StatelessWidget {
@@ -32,11 +33,7 @@ class ProductCard extends StatelessWidget {
                   Positioned.fill(
                     child: ColoredBox(
                       color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                      child: Image.asset(
-                        product.imageAsset,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                      ),
+                      child: ProductImage(product: product),
                     ),
                   ),
                   Positioned(

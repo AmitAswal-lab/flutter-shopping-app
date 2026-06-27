@@ -5,6 +5,7 @@ import '../providers/cart.dart';
 import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../utils/money.dart';
+import '../widgets/product_image.dart';
 import '../widgets/wishlist_icon_button.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -80,7 +81,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         children: [
           AspectRatio(
             aspectRatio: 1,
-            child: Image.asset(product.imageAsset, fit: BoxFit.contain),
+            child: ProductImage(product: product, fit: BoxFit.contain),
           ),
           const SizedBox(height: 24),
           Text(product.brand, style: Theme.of(context).textTheme.labelLarge),

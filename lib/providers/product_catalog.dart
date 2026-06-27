@@ -16,12 +16,12 @@ class ProductCatalog extends ChangeNotifier {
   final List<Product> _products = [];
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
   bool _isLoading = false;
-  bool _isSeeding = false;
+  bool _isSyncing = false;
   String? _errorMessage;
 
   List<Product> get products => List.unmodifiable(_products);
   bool get isLoading => _isLoading;
-  bool get isSeeding => _isSeeding;
+  bool get isSyncing => _isSyncing;
   String? get errorMessage => _errorMessage;
 
   Future<void> load() async {
@@ -47,13 +47,13 @@ class ProductCatalog extends ChangeNotifier {
         .listen(_handleSnapshot, onError: _handleError);
   }
 
-  Future<void> seedSampleProducts() async {
+  Future<bool> syncSampleProducts() async {
     if (!kDebugMode) {
-      throw StateError('Sample products can only be seeded in debug mode.');
+      throw StateError('Sample products can only be synced in debug mode.');
     }
-    if (firestore == null || _isSeeding) return;
+    if (firestore == null || _isSyncing) return false;
 
-    _isSeeding = true;
+    _isSyncing = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -70,14 +70,21 @@ class ProductCatalog extends ChangeNotifier {
         batch.set(firestore!.collection('products').doc(id), {
           ...data,
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
       }
 
       await batch.commit();
+      return true;
+    } on FirebaseException catch (error) {
+      _errorMessage = error.code == 'permission-denied'
+          ? 'Firestore denied catalog writes. Enable temporary product writes.'
+          : 'Could not sync the sample product catalog.';
+      return false;
     } catch (_) {
-      _errorMessage = 'Could not add the sample product catalog.';
+      _errorMessage = 'The bundled catalog data could not be read.';
+      return false;
     } finally {
-      _isSeeding = false;
+      _isSyncing = false;
       notifyListeners();
     }
   }
