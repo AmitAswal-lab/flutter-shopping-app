@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../providers/cart.dart';
 import '../providers/order_history.dart';
 import '../providers/wishlist.dart';
+import '../models/order.dart';
 import 'account_screen.dart';
 import 'cart_screen.dart';
 import 'order_history_screen.dart';
+import 'payment_screen.dart';
 import 'product_list_screen.dart';
 import 'wishlist_screen.dart';
 
@@ -26,6 +28,20 @@ class _MainShellScreenState extends State<MainShellScreen> {
     setState(() => _selectedIndex = index);
   }
 
+  void _resumePayment(Order order) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PaymentScreen(
+          orderId: order.id,
+          customerName: order.customerName,
+          paymentMethod: order.paymentMethod,
+          reservationExpiresAt: order.reservationExpiresAt,
+          totalPriceCents: order.totalPriceCents,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final orderCount = context.select<OrderHistory, int>(
@@ -42,7 +58,10 @@ class _MainShellScreenState extends State<MainShellScreen> {
         children: [
           const ProductListScreen(),
           WishlistScreen(onBrowseProducts: () => _selectTab(_shopTabIndex)),
-          OrderHistoryScreen(onBrowseProducts: () => _selectTab(_shopTabIndex)),
+          OrderHistoryScreen(
+            onBrowseProducts: () => _selectTab(_shopTabIndex),
+            onResumePayment: _resumePayment,
+          ),
           CartScreen(onBrowseProducts: () => _selectTab(_shopTabIndex)),
           const AccountScreen(),
         ],

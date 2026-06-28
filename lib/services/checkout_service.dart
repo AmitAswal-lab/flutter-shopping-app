@@ -2,16 +2,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/cart_item.dart';
+import '../models/payment.dart';
 
 class CheckoutResult {
   const CheckoutResult({
     required this.orderId,
     required this.customerName,
+    required this.paymentMethod,
+    required this.reservationExpiresAt,
+    required this.status,
     required this.totalPriceCents,
   });
 
   final String orderId;
   final String customerName;
+  final PaymentMethod paymentMethod;
+  final DateTime? reservationExpiresAt;
+  final OrderStatus status;
   final int totalPriceCents;
 }
 
@@ -48,6 +55,7 @@ class CheckoutService {
     required String checkoutId,
     required String deliveryAddress,
     required List<CartItem> items,
+    required PaymentMethod paymentMethod,
   }) async {
     final callableFunctions = functions;
     if (callableFunctions == null) {
@@ -59,6 +67,7 @@ class CheckoutService {
       final response = await callable.call(<String, Object>{
         'checkoutId': checkoutId,
         'deliveryAddress': deliveryAddress,
+        'paymentMethod': paymentMethod.wireValue,
         'productIds': items.map((item) => item.productId).toList(),
       });
       final data = Map<String, dynamic>.from(response.data as Map);
@@ -66,6 +75,11 @@ class CheckoutService {
       return CheckoutResult(
         orderId: data['orderId'] as String,
         customerName: data['customerName'] as String,
+        paymentMethod: PaymentMethod.fromWireValue(data['paymentMethod']),
+        reservationExpiresAt: _dateTimeFromMillis(
+          data['reservationExpiresAtMillis'],
+        ),
+        status: OrderStatus.fromWireValue(data['status']),
         totalPriceCents: (data['totalPriceCents'] as num).toInt(),
       );
     } on FirebaseFunctionsException catch (error) {
@@ -77,5 +91,10 @@ class CheckoutService {
     } catch (_) {
       throw const CheckoutFailure('Could not place the order. Try again.');
     }
+  }
+
+  DateTime? _dateTimeFromMillis(Object? value) {
+    if (value is! num) return null;
+    return DateTime.fromMillisecondsSinceEpoch(value.toInt());
   }
 }

@@ -12,6 +12,7 @@ import 'providers/product_filter.dart';
 import 'providers/user_profile.dart';
 import 'providers/wishlist.dart';
 import 'services/checkout_service.dart';
+import 'services/payment_service.dart';
 import 'screens/auth_screen.dart';
 import 'screens/main_shell_screen.dart';
 import 'theme/app_theme.dart';
@@ -53,6 +54,11 @@ class ShoppingApp extends StatelessWidget {
           create: (_) => firestore == null
               ? const CheckoutService.unconfigured()
               : CheckoutService.configured(firestore: firestore),
+        ),
+        Provider(
+          create: (_) => firebaseSetup.isConfigured
+              ? PaymentService.configured()
+              : const PaymentService.unconfigured(),
         ),
         ChangeNotifierProvider(create: (_) => ProductFilter()),
         ChangeNotifierProvider(create: (_) => Wishlist(firestore: firestore)),

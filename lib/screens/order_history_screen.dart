@@ -3,41 +3,38 @@ import 'package:provider/provider.dart';
 
 import '../models/cart_item.dart';
 import '../models/order.dart';
+import '../models/payment.dart';
 import '../providers/order_history.dart';
 import '../utils/date_time_format.dart';
 import '../utils/money.dart';
 
 class OrderHistoryScreen extends StatelessWidget {
   final VoidCallback? onBrowseProducts;
+  final ValueChanged<Order>? onResumePayment;
 
-  const OrderHistoryScreen({super.key, this.onBrowseProducts});
+  const OrderHistoryScreen({
+    super.key,
+    this.onBrowseProducts,
+    this.onResumePayment,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isEmpty = context.select<OrderHistory, bool>(
-      (history) => history.isEmpty,
-    );
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Order History'),
-        actions: [
-          if (!isEmpty)
-            TextButton(
-              onPressed: context.read<OrderHistory>().clear,
-              child: const Text('Clear'),
-            ),
-        ],
+      appBar: AppBar(title: const Text('Order History')),
+      body: _OrderHistoryBody(
+        onBrowseProducts: onBrowseProducts,
+        onResumePayment: onResumePayment,
       ),
-      body: _OrderHistoryBody(onBrowseProducts: onBrowseProducts),
     );
   }
 }
 
 class _OrderHistoryBody extends StatelessWidget {
   final VoidCallback? onBrowseProducts;
+  final ValueChanged<Order>? onResumePayment;
 
-  const _OrderHistoryBody({this.onBrowseProducts});
+  const _OrderHistoryBody({this.onBrowseProducts, this.onResumePayment});
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +51,10 @@ class _OrderHistoryBody extends StatelessWidget {
       itemCount: orders.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        return _OrderHistoryCard(order: orders[index]);
+        return _OrderHistoryCard(
+          order: orders[index],
+          onResumePayment: onResumePayment,
+        );
       },
     );
   }
@@ -62,8 +62,9 @@ class _OrderHistoryBody extends StatelessWidget {
 
 class _OrderHistoryCard extends StatelessWidget {
   final Order order;
+  final ValueChanged<Order>? onResumePayment;
 
-  const _OrderHistoryCard({required this.order});
+  const _OrderHistoryCard({required this.order, this.onResumePayment});
 
   @override
   Widget build(BuildContext context) {
@@ -72,9 +73,16 @@ class _OrderHistoryCard extends StatelessWidget {
     return Card(
       child: ExpansionTile(
         leading: CircleAvatar(child: Text(order.totalCount.toString())),
-        title: Text(
-          formatCents(order.totalPriceCents),
-          style: textTheme.titleMedium,
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                formatCents(order.totalPriceCents),
+                style: textTheme.titleMedium,
+              ),
+            ),
+            _OrderStatusLabel(status: order.status),
+          ],
         ),
         subtitle: Text(formatOrderDate(order.createdAt)),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -86,7 +94,54 @@ class _OrderHistoryCard extends StatelessWidget {
           Text(order.deliveryAddress),
           const SizedBox(height: 12),
           for (final item in order.items) _OrderItemRow(item: item),
+          if (order.canResumePayment && onResumePayment != null) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => onResumePayment!(order),
+                icon: const Icon(Icons.payment),
+                label: const Text('Complete payment'),
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _OrderStatusLabel extends StatelessWidget {
+  const _OrderStatusLabel({required this.status});
+
+  final OrderStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final (background, foreground) = switch (status) {
+      OrderStatus.paid || OrderStatus.confirmed => (
+        colorScheme.primaryContainer,
+        colorScheme.onPrimaryContainer,
+      ),
+      OrderStatus.pendingPayment => (
+        colorScheme.secondaryContainer,
+        colorScheme.onSecondaryContainer,
+      ),
+      _ => (colorScheme.errorContainer, colorScheme.onErrorContainer),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        status.label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(color: foreground),
       ),
     );
   }
