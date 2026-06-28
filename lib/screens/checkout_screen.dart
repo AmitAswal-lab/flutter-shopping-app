@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/cart_item.dart';
-import '../models/user_profile.dart';
-import '../providers/auth_controller.dart';
 import '../providers/cart.dart';
-import '../providers/order_history.dart';
+import '../providers/product_catalog.dart';
 import '../providers/user_profile.dart';
+import '../services/checkout_service.dart';
 import '../utils/money.dart';
 import 'order_success_screen.dart';
 
@@ -22,6 +21,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressController = TextEditingController();
   bool _isPlacingOrder = false;
   bool _hasPrefilledProfile = false;
+  String? _checkoutId;
 
   @override
   void didChangeDependencies() {
@@ -54,10 +54,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (_isPlacingOrder || form == null || !form.validate()) return;
 
     final cart = context.read<Cart>();
-    final auth = context.read<AuthController>();
-    final userProfile = context.read<UserProfileController>().profile;
-    final totalPriceCents = cart.totalPriceCents;
-    final customerName = _customerNameForOrder(auth, userProfile);
+    final catalog = context.read<ProductCatalog>();
+    final checkout = context.read<CheckoutService>();
     final deliveryAddress = _addressController.text.trim();
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -65,12 +63,60 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _isPlacingOrder = true);
 
     try {
-      await context.read<OrderHistory>().add(
-        customerName: customerName,
+      await catalog.refreshFromServer();
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() => _isPlacingOrder = false);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Could not verify current stock. Try again.'),
+          ),
+        );
+      return;
+    }
+
+    final stockIssue = _stockIssue(cart, catalog);
+    if (stockIssue != null) {
+      if (!mounted) return;
+
+      setState(() => _isPlacingOrder = false);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(stockIssue)));
+      return;
+    }
+
+    try {
+      _checkoutId ??= checkout.createCheckoutId();
+      final result = await checkout.placeOrder(
+        checkoutId: _checkoutId!,
         deliveryAddress: deliveryAddress,
         items: cart.items,
       );
-      await cart.clear();
+
+      if (!mounted) return;
+
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => OrderSuccessScreen(
+            customerName: result.customerName,
+            totalPriceCents: result.totalPriceCents,
+          ),
+        ),
+        (route) => route.isFirst,
+      );
+      return;
+    } on CheckoutFailure catch (error) {
+      if (!mounted) return;
+
+      setState(() => _isPlacingOrder = false);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error.message)));
+      return;
     } catch (_) {
       if (!mounted) return;
 
@@ -82,31 +128,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         );
       return;
     }
-
-    if (!mounted) return;
-
-    navigator.pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => OrderSuccessScreen(
-          customerName: customerName,
-          totalPriceCents: totalPriceCents,
-        ),
-      ),
-      (route) => route.isFirst,
-    );
   }
 
-  String _customerNameForOrder(AuthController auth, UserProfile userProfile) {
-    final fullName = userProfile.fullName.trim();
-    if (fullName.isNotEmpty) return fullName;
+  String? _stockIssue(Cart cart, ProductCatalog catalog) {
+    for (final item in cart.items) {
+      final product = catalog.productById(item.productId);
+      if (product == null) {
+        return '${item.name} is no longer available.';
+      }
+      if (product.stockCount <= 0) {
+        return '${item.name} is out of stock.';
+      }
+      if (item.quantity > product.stockCount) {
+        return 'Only ${product.stockCount} ${item.name} available.';
+      }
+    }
 
-    final displayName = auth.user?.displayName?.trim();
-    if (displayName != null && displayName.isNotEmpty) return displayName;
-
-    final email = auth.user?.email?.trim();
-    if (email != null && email.isNotEmpty) return email;
-
-    return 'Shopper';
+    return null;
   }
 
   String? _requiredField(String? value) {

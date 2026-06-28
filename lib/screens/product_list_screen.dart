@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -141,30 +140,10 @@ class _EmptyCatalog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final catalog = context.watch<ProductCatalog>();
-
-    return _CatalogMessage(
+    return const _CatalogMessage(
       icon: Icons.inventory_2_outlined,
       title: 'The catalog is empty',
-      message: kDebugMode
-          ? 'Add the bundled sample products to Firestore to continue.'
-          : 'Products will appear here when they become available.',
-      action: kDebugMode
-          ? FilledButton.icon(
-              onPressed: catalog.isSyncing ? null : catalog.syncSampleProducts,
-              icon: catalog.isSyncing
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.cloud_upload_outlined),
-              label: Text(
-                catalog.isSyncing
-                    ? 'Adding products...'
-                    : 'Add sample products',
-              ),
-            )
-          : null,
+      message: 'Products will appear here when they become available.',
     );
   }
 }
