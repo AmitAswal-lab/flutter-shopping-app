@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/cart_item.dart';
+import '../models/payment.dart';
 import '../providers/cart.dart';
 import '../providers/product_catalog.dart';
 import '../providers/user_profile.dart';
 import '../services/checkout_service.dart';
 import '../utils/money.dart';
 import 'order_success_screen.dart';
+import 'payment_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -22,6 +24,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _isPlacingOrder = false;
   bool _hasPrefilledProfile = false;
   String? _checkoutId;
+  PaymentMethod _paymentMethod = PaymentMethod.testCard;
 
   @override
   void didChangeDependencies() {
@@ -95,18 +98,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         checkoutId: _checkoutId!,
         deliveryAddress: deliveryAddress,
         items: cart.items,
+        paymentMethod: _paymentMethod,
       );
 
       if (!mounted) return;
 
-      navigator.pushAndRemoveUntil(
+      if (result.status.isSuccessful) {
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => OrderSuccessScreen(
+              customerName: result.customerName,
+              totalPriceCents: result.totalPriceCents,
+            ),
+          ),
+          (route) => route.isFirst,
+        );
+        return;
+      }
+
+      navigator.pushReplacement(
         MaterialPageRoute(
-          builder: (_) => OrderSuccessScreen(
+          builder: (_) => PaymentScreen(
+            orderId: result.orderId,
             customerName: result.customerName,
+            paymentMethod: result.paymentMethod,
+            reservationExpiresAt: result.reservationExpiresAt,
             totalPriceCents: result.totalPriceCents,
           ),
         ),
-        (route) => route.isFirst,
       );
       return;
     } on CheckoutFailure catch (error) {
@@ -185,6 +204,37 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             validator: _requiredField,
                           ),
                           const SizedBox(height: 24),
+                          Text(
+                            'Payment method',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<PaymentMethod>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: PaymentMethod.testCard,
+                                  icon: Icon(Icons.credit_card),
+                                  label: Text('Test card'),
+                                ),
+                                ButtonSegment(
+                                  value: PaymentMethod.testUpi,
+                                  icon: Icon(Icons.qr_code),
+                                  label: Text('Test UPI'),
+                                ),
+                              ],
+                              selected: {_paymentMethod},
+                              onSelectionChanged: _isPlacingOrder
+                                  ? null
+                                  : (selection) {
+                                      setState(
+                                        () => _paymentMethod = selection.first,
+                                      );
+                                    },
+                            ),
+                          ),
+                          const SizedBox(height: 24),
                           FilledButton.icon(
                             onPressed: _isPlacingOrder ? null : _placeOrder,
                             icon: _isPlacingOrder
@@ -195,8 +245,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Icon(Icons.check_circle_outline),
-                            label: const Text('Place order'),
+                                : const Icon(Icons.arrow_forward),
+                            label: const Text('Continue to payment'),
                           ),
                         ],
                       ),

@@ -1,4 +1,5 @@
 import 'cart_item.dart';
+import 'payment.dart';
 
 class Order {
   final String id;
@@ -6,6 +7,9 @@ class Order {
   final String deliveryAddress;
   final DateTime createdAt;
   final List<CartItem> items;
+  final PaymentMethod paymentMethod;
+  final DateTime? reservationExpiresAt;
+  final OrderStatus status;
 
   const Order({
     required this.id,
@@ -13,10 +17,19 @@ class Order {
     required this.deliveryAddress,
     required this.createdAt,
     required this.items,
+    required this.paymentMethod,
+    required this.reservationExpiresAt,
+    required this.status,
   });
 
   int get totalCount => items.fold(0, (sum, item) => sum + item.quantity);
 
   int get totalPriceCents =>
       items.fold(0, (sum, item) => sum + item.lineTotalCents);
+
+  bool get canResumePayment {
+    if (!status.isPending) return false;
+    final expiresAt = reservationExpiresAt;
+    return expiresAt == null || expiresAt.isAfter(DateTime.now());
+  }
 }

@@ -1,6 +1,7 @@
 "use strict";
 
 const MAX_CART_ITEMS = 50;
+const PAYMENT_METHODS = new Set(["testCard", "testUpi"]);
 
 class CheckoutInputError extends Error {}
 
@@ -25,6 +26,15 @@ function parseCheckoutRequest(data) {
     3,
     500,
   );
+  const paymentMethod = requireTrimmedString(
+    data.paymentMethod,
+    "Payment method",
+    1,
+    32,
+  );
+  if (!PAYMENT_METHODS.has(paymentMethod)) {
+    throw new CheckoutInputError("Payment method is invalid.");
+  }
 
   if (
     !Array.isArray(data.productIds) ||
@@ -38,7 +48,7 @@ function parseCheckoutRequest(data) {
 
   const productIds = [...new Set(data.productIds.map(parseProductId))];
 
-  return {checkoutId, deliveryAddress, productIds};
+  return {checkoutId, deliveryAddress, paymentMethod, productIds};
 }
 
 function parseProductId(value) {

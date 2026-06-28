@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/cart_item.dart';
 import '../models/order.dart';
+import '../models/payment.dart';
 
 class OrderHistory extends ChangeNotifier {
   final FirebaseFirestore? firestore;
@@ -60,24 +61,6 @@ class OrderHistory extends ChangeNotifier {
         );
   }
 
-  Future<void> clear() async {
-    if (!_isFirestoreReady) {
-      _clearLocally();
-      return;
-    }
-
-    final snapshot = await _ordersCollection.get();
-    if (snapshot.docs.isEmpty) return;
-
-    final batch = firestore!.batch();
-    for (final doc in snapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    await batch.commit();
-  }
-
-  bool get _isFirestoreReady => firestore != null && _userId != null;
-
   CollectionReference<Map<String, dynamic>> get _ordersCollection {
     return firestore!.collection('users').doc(_userId).collection('orders');
   }
@@ -85,6 +68,7 @@ class OrderHistory extends ChangeNotifier {
   Order _orderFromDocument(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     final createdAt = data['createdAt'];
+    final reservationExpiresAt = data['reservationExpiresAt'];
     final items = data['items'] as List<dynamic>? ?? const [];
 
     return Order(
@@ -99,14 +83,12 @@ class OrderHistory extends ChangeNotifier {
           return CartItem.fromJson(Map<String, Object?>.from(item as Map));
         }),
       ),
+      paymentMethod: PaymentMethod.fromWireValue(data['paymentMethod']),
+      reservationExpiresAt: reservationExpiresAt is Timestamp
+          ? reservationExpiresAt.toDate()
+          : null,
+      status: OrderStatus.fromWireValue(data['status']),
     );
-  }
-
-  void _clearLocally() {
-    if (_orders.isEmpty) return;
-
-    _orders.clear();
-    notifyListeners();
   }
 
   @override

@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 
-import '../utils/money.dart';
+import '../models/payment.dart';
 import 'order_history_screen.dart';
 
-class OrderSuccessScreen extends StatelessWidget {
-  final String customerName;
-  final int totalPriceCents;
+class PaymentResultScreen extends StatelessWidget {
+  const PaymentResultScreen({super.key, required this.status});
 
-  const OrderSuccessScreen({
-    super.key,
-    required this.customerName,
-    required this.totalPriceCents,
-  });
+  final OrderStatus status;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isExpired = status == OrderStatus.expired;
+    final isCancelled = status == OrderStatus.cancelled;
+    final title = isExpired
+        ? 'Payment expired'
+        : isCancelled
+        ? 'Payment cancelled'
+        : 'Payment declined';
+    final message = isExpired
+        ? 'The payment reservation expired and the stock was released.'
+        : isCancelled
+        ? 'The payment was cancelled and the stock was released.'
+        : 'The payment was declined and the stock was released.';
 
     return Scaffold(
       body: SafeArea(
@@ -29,19 +36,19 @@ class OrderSuccessScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Icon(
-                    Icons.check_circle,
+                    isCancelled ? Icons.block_outlined : Icons.error_outline,
                     size: 96,
-                    color: colorScheme.primary,
+                    color: colorScheme.error,
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Payment successful',
+                    title,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Thanks, $customerName. Your payment of ${formatCents(totalPriceCents)} was approved.',
+                    message,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
