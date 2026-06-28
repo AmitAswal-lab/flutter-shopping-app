@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'providers/app_preferences.dart';
 import 'providers/auth_controller.dart';
 import 'providers/cart.dart';
 import 'providers/order_history.dart';
+import 'providers/product_catalog.dart';
 import 'providers/product_filter.dart';
+import 'providers/user_profile.dart';
 import 'providers/wishlist.dart';
+import 'services/checkout_service.dart';
 import 'screens/auth_screen.dart';
 import 'screens/main_shell_screen.dart';
 import 'theme/app_theme.dart';
@@ -15,14 +19,22 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final firebaseSetup = await FirebaseSetup.initialize();
+  final appPreferences = await AppPreferences.load();
 
-  runApp(ShoppingApp(firebaseSetup: firebaseSetup));
+  runApp(
+    ShoppingApp(firebaseSetup: firebaseSetup, appPreferences: appPreferences),
+  );
 }
 
 class ShoppingApp extends StatelessWidget {
   final FirebaseSetup firebaseSetup;
+  final AppPreferences appPreferences;
 
-  const ShoppingApp({super.key, required this.firebaseSetup});
+  const ShoppingApp({
+    super.key,
+    required this.firebaseSetup,
+    required this.appPreferences,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +44,23 @@ class ShoppingApp extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: appPreferences),
         ChangeNotifierProvider(create: (_) => Cart(firestore: firestore)),
+        ChangeNotifierProvider(
+          create: (_) => ProductCatalog(firestore: firestore),
+        ),
+        Provider(
+          create: (_) => firestore == null
+              ? const CheckoutService.unconfigured()
+              : CheckoutService.configured(firestore: firestore),
+        ),
         ChangeNotifierProvider(create: (_) => ProductFilter()),
         ChangeNotifierProvider(create: (_) => Wishlist(firestore: firestore)),
         ChangeNotifierProvider(
           create: (_) => OrderHistory(firestore: firestore),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => UserProfileController(firestore: firestore),
         ),
         ChangeNotifierProvider(
           create: (_) => firebaseSetup.isConfigured
@@ -44,13 +68,19 @@ class ShoppingApp extends StatelessWidget {
               : AuthController.unconfigured(firebaseSetup.errorMessage),
         ),
       ],
-      child: UserDataBinder(
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Shopping App',
-          theme: AppTheme.dark,
-          home: const AuthGate(),
-        ),
+      child: Consumer<AppPreferences>(
+        builder: (context, preferences, child) {
+          return UserDataBinder(
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'Shopping App',
+              theme: AppTheme.light,
+              darkTheme: AppTheme.dark,
+              themeMode: preferences.themeMode,
+              home: const AuthGate(),
+            ),
+          );
+        },
       ),
     );
   }
@@ -92,6 +122,7 @@ class _UserDataBinderState extends State<UserDataBinder> {
     context.read<Cart>().bindUser(userId);
     context.read<Wishlist>().bindUser(userId);
     context.read<OrderHistory>().bindUser(userId);
+    context.read<UserProfileController>().bindUser(userId);
   }
 
   @override

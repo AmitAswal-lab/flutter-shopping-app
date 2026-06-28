@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const _colorScheme = ColorScheme(
+  static const _darkColorScheme = ColorScheme(
     brightness: Brightness.dark,
     primary: Color(0xFF9EEBCF),
     onPrimary: Color(0xFF062018),
@@ -33,31 +33,74 @@ class AppTheme {
     inversePrimary: Color(0xFF006C50),
   );
 
+  static const _lightColorScheme = ColorScheme(
+    brightness: Brightness.light,
+    primary: Color(0xFF006C50),
+    onPrimary: Color(0xFFFFFFFF),
+    primaryContainer: Color(0xFFBFF4DF),
+    onPrimaryContainer: Color(0xFF002116),
+    secondary: Color(0xFF7A5600),
+    onSecondary: Color(0xFFFFFFFF),
+    secondaryContainer: Color(0xFFFFDEA0),
+    onSecondaryContainer: Color(0xFF271900),
+    tertiary: Color(0xFF006879),
+    onTertiary: Color(0xFFFFFFFF),
+    tertiaryContainer: Color(0xFFA8EDFF),
+    onTertiaryContainer: Color(0xFF001F26),
+    error: Color(0xFFBA1A1A),
+    onError: Color(0xFFFFFFFF),
+    surface: Color(0xFFFCF8FF),
+    onSurface: Color(0xFF1D1B20),
+    surfaceContainerLowest: Color(0xFFFFFFFF),
+    surfaceContainerLow: Color(0xFFF6F0F7),
+    surfaceContainer: Color(0xFFF0EAF1),
+    surfaceContainerHigh: Color(0xFFEAE4EB),
+    surfaceContainerHighest: Color(0xFFE4DFE5),
+    outline: Color(0xFF79747E),
+    outlineVariant: Color(0xFFCAC4D0),
+    shadow: Color(0xFF000000),
+    scrim: Color(0xFF000000),
+    inverseSurface: Color(0xFF322F35),
+    onInverseSurface: Color(0xFFF5EFF7),
+    inversePrimary: Color(0xFF9EEBCF),
+  );
+
+  static ThemeData get light {
+    return _themeFor(_lightColorScheme);
+  }
+
   static ThemeData get dark {
-    final textTheme = ThemeData.dark(useMaterial3: true).textTheme;
+    return _themeFor(_darkColorScheme);
+  }
+
+  static ThemeData _themeFor(ColorScheme colorScheme) {
+    final textTheme = ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+    ).textTheme;
 
     return ThemeData(
       useMaterial3: true,
-      colorScheme: _colorScheme,
-      scaffoldBackgroundColor: _colorScheme.surface,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: colorScheme.surface,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: _colorScheme.surface,
-        foregroundColor: _colorScheme.onSurface,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         surfaceTintColor: Colors.transparent,
       ),
       cardTheme: CardThemeData(
-        color: _colorScheme.surfaceContainerLow,
+        color: colorScheme.surfaceContainerLow,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: _colorScheme.primary,
-          foregroundColor: _colorScheme.onPrimary,
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
           minimumSize: const Size.fromHeight(48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
@@ -67,8 +110,8 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: _colorScheme.primary,
-          side: BorderSide(color: _colorScheme.outlineVariant),
+          foregroundColor: colorScheme.primary,
+          side: BorderSide(color: colorScheme.outlineVariant),
           minimumSize: const Size.fromHeight(48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
@@ -77,7 +120,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: _colorScheme.surfaceContainerHighest,
+        fillColor: colorScheme.surfaceContainerHighest,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
@@ -88,45 +131,43 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: _colorScheme.primary, width: 2),
+          borderSide: BorderSide(color: colorScheme.primary, width: 2),
         ),
-        labelStyle: TextStyle(color: _colorScheme.outline),
-        hintStyle: TextStyle(color: _colorScheme.outline),
+        labelStyle: TextStyle(color: colorScheme.outline),
+        hintStyle: TextStyle(color: colorScheme.outline),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: Colors.transparent,
-        selectedColor: _colorScheme.secondaryContainer,
-        disabledColor: _colorScheme.surfaceContainerLow,
-        labelStyle: TextStyle(color: _colorScheme.onSurface),
-        secondaryLabelStyle: TextStyle(
-          color: _colorScheme.onSecondaryContainer,
-        ),
-        side: BorderSide(color: _colorScheme.outlineVariant),
+        selectedColor: colorScheme.secondaryContainer,
+        disabledColor: colorScheme.surfaceContainerLow,
+        labelStyle: TextStyle(color: colorScheme.onSurface),
+        secondaryLabelStyle: TextStyle(color: colorScheme.onSecondaryContainer),
+        side: BorderSide(color: colorScheme.outlineVariant),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         showCheckmark: true,
-        checkmarkColor: _colorScheme.onSecondaryContainer,
+        checkmarkColor: colorScheme.onSecondaryContainer,
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: _colorScheme.surfaceContainer,
-        indicatorColor: _colorScheme.secondaryContainer,
+        backgroundColor: colorScheme.surfaceContainer,
+        indicatorColor: colorScheme.secondaryContainer,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return IconThemeData(color: _colorScheme.onSecondaryContainer);
+            return IconThemeData(color: colorScheme.onSecondaryContainer);
           }
-          return IconThemeData(color: _colorScheme.onSurface);
+          return IconThemeData(color: colorScheme.onSurface);
         }),
         labelTextStyle: WidgetStateProperty.all(
-          TextStyle(color: _colorScheme.onSurface, fontSize: 12),
+          TextStyle(color: colorScheme.onSurface, fontSize: 12),
         ),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
       dividerTheme: DividerThemeData(
-        color: _colorScheme.outlineVariant,
+        color: colorScheme.outlineVariant,
         thickness: 1,
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          foregroundColor: _colorScheme.onSurface,
+          foregroundColor: colorScheme.onSurface,
           backgroundColor: Colors.transparent,
         ),
       ),

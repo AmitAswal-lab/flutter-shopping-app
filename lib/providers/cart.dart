@@ -5,6 +5,20 @@ import 'package:flutter/foundation.dart';
 
 import '../models/cart_item.dart';
 
+class CartStockException implements Exception {
+  const CartStockException({
+    required this.productName,
+    required this.availableQuantity,
+  });
+
+  final String productName;
+  final int availableQuantity;
+
+  String get message => availableQuantity <= 0
+      ? '$productName is out of stock.'
+      : 'Only $availableQuantity $productName available.';
+}
+
 class Cart extends ChangeNotifier {
   final FirebaseFirestore? firestore;
   final List<CartItem> _items = [];
@@ -73,9 +87,9 @@ class Cart extends ChangeNotifier {
         );
   }
 
-  Future<void> add(CartItem item) async {
+  Future<void> add(CartItem item, {required int availableStock}) async {
     if (!_isFirestoreReady) {
-      _addLocally(item);
+      _addLocally(item, availableStock: availableStock);
       return;
     }
 
@@ -85,9 +99,13 @@ class Cart extends ChangeNotifier {
       final existingQuantity = snapshot.exists
           ? (snapshot.data()?['quantity'] as num? ?? 0).toInt()
           : 0;
-      final nextItem = item.copyWith(
-        quantity: existingQuantity + item.quantity,
+      final nextQuantity = existingQuantity + item.quantity;
+      _ensureStockAvailable(
+        productName: item.name,
+        quantity: nextQuantity,
+        availableStock: availableStock,
       );
+      final nextItem = item.copyWith(quantity: nextQuantity);
 
       transaction.set(doc, {
         ...nextItem.toJson(),
@@ -105,15 +123,31 @@ class Cart extends ChangeNotifier {
     await _itemsCollection.doc(productId).delete();
   }
 
-  Future<void> setQuantity(String productId, int quantity) async {
+  Future<void> setQuantity(
+    String productId,
+    int quantity, {
+    required int availableStock,
+  }) async {
     if (!_isFirestoreReady) {
-      _setQuantityLocally(productId, quantity);
+      _setQuantityLocally(productId, quantity, availableStock: availableStock);
       return;
     }
 
     if (quantity <= 0) {
       await remove(productId);
       return;
+    }
+
+    final item = _items
+        .where((item) => item.productId == productId)
+        .firstOrNull;
+    if (item == null) return;
+    if (quantity > item.quantity) {
+      _ensureStockAvailable(
+        productName: item.name,
+        quantity: quantity,
+        availableStock: availableStock,
+      );
     }
 
     await _itemsCollection.doc(productId).update({
@@ -144,12 +178,19 @@ class Cart extends ChangeNotifier {
     return firestore!.collection('users').doc(_userId).collection('cartItems');
   }
 
-  void _addLocally(CartItem item) {
+  void _addLocally(CartItem item, {required int availableStock}) {
     final index = _items.indexWhere((e) => e.productId == item.productId);
+    final nextQuantity = index >= 0
+        ? _items[index].quantity + item.quantity
+        : item.quantity;
+    _ensureStockAvailable(
+      productName: item.name,
+      quantity: nextQuantity,
+      availableStock: availableStock,
+    );
+
     if (index >= 0) {
-      _items[index] = _items[index].copyWith(
-        quantity: _items[index].quantity + item.quantity,
-      );
+      _items[index] = _items[index].copyWith(quantity: nextQuantity);
     } else {
       _items.add(item);
     }
@@ -162,15 +203,39 @@ class Cart extends ChangeNotifier {
     if (_items.length != before) notifyListeners();
   }
 
-  void _setQuantityLocally(String productId, int quantity) {
+  void _setQuantityLocally(
+    String productId,
+    int quantity, {
+    required int availableStock,
+  }) {
     final index = _items.indexWhere((e) => e.productId == productId);
     if (index < 0) return;
     if (quantity <= 0) {
       _removeLocally(productId);
       return;
     }
+    if (quantity > _items[index].quantity) {
+      _ensureStockAvailable(
+        productName: _items[index].name,
+        quantity: quantity,
+        availableStock: availableStock,
+      );
+    }
     _items[index] = _items[index].copyWith(quantity: quantity);
     notifyListeners();
+  }
+
+  void _ensureStockAvailable({
+    required String productName,
+    required int quantity,
+    required int availableStock,
+  }) {
+    if (quantity <= availableStock) return;
+
+    throw CartStockException(
+      productName: productName,
+      availableQuantity: availableStock,
+    );
   }
 
   void _clearLocally() {

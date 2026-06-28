@@ -60,34 +60,6 @@ class OrderHistory extends ChangeNotifier {
         );
   }
 
-  Future<void> add({
-    required String customerName,
-    required String deliveryAddress,
-    required List<CartItem> items,
-  }) async {
-    final order = Order(
-      id: _createOrderId(),
-      customerName: customerName,
-      deliveryAddress: deliveryAddress,
-      createdAt: DateTime.now(),
-      items: List.unmodifiable(items),
-    );
-
-    if (!_isFirestoreReady) {
-      _orders.insert(0, order);
-      notifyListeners();
-      return;
-    }
-
-    await _ordersCollection.doc(order.id).set({
-      'id': order.id,
-      'customerName': order.customerName,
-      'deliveryAddress': order.deliveryAddress,
-      'createdAt': Timestamp.fromDate(order.createdAt),
-      'items': order.items.map((item) => item.toJson()).toList(),
-    });
-  }
-
   Future<void> clear() async {
     if (!_isFirestoreReady) {
       _clearLocally();
@@ -135,12 +107,6 @@ class OrderHistory extends ChangeNotifier {
 
     _orders.clear();
     notifyListeners();
-  }
-
-  String _createOrderId() {
-    if (_isFirestoreReady) return _ordersCollection.doc().id;
-
-    return DateTime.now().millisecondsSinceEpoch.toString();
   }
 
   @override

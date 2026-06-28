@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/product.dart';
+import '../providers/product_catalog.dart';
 import '../providers/product_filter.dart';
+import '../screens/product_search_screen.dart';
 import '../widgets/product_card.dart';
 
 class ProductListScreen extends StatelessWidget {
@@ -22,13 +24,29 @@ class _ProductCatalog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visibleProducts = context.select<ProductFilter, List<Product>>(
-      (filter) => filter.applyTo(kProducts),
+    final catalog = context.watch<ProductCatalog>();
+
+    if (catalog.isLoading && catalog.products.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (catalog.errorMessage != null && catalog.products.isEmpty) {
+      return _CatalogError(message: catalog.errorMessage!);
+    }
+
+    if (catalog.products.isEmpty) {
+      return const _EmptyCatalog();
+    }
+
+    final visibleProducts = context.watch<ProductFilter>().applyTo(
+      catalog.products,
     );
 
     return CustomScrollView(
       slivers: [
-        const SliverToBoxAdapter(child: _SearchAndFilterHeader()),
+        SliverToBoxAdapter(
+          child: _SearchAndFilterHeader(visibleCount: visibleProducts.length),
+        ),
         if (visibleProducts.isEmpty)
           const SliverFillRemaining(
             hasScrollBody: false,
@@ -56,13 +74,12 @@ class _ProductCatalog extends StatelessWidget {
 }
 
 class _SearchAndFilterHeader extends StatelessWidget {
-  const _SearchAndFilterHeader();
+  const _SearchAndFilterHeader({required this.visibleCount});
+
+  final int visibleCount;
 
   @override
   Widget build(BuildContext context) {
-    final visibleCount = context.select<ProductFilter, int>(
-      (filter) => filter.applyTo(kProducts).length,
-    );
     final hasActiveFilters = context.select<ProductFilter, bool>(
       (filter) => filter.hasActiveFilters,
     );
@@ -98,70 +115,140 @@ class _SearchAndFilterHeader extends StatelessWidget {
   }
 }
 
-class _ProductSearchField extends StatefulWidget {
-  const _ProductSearchField();
+class _CatalogError extends StatelessWidget {
+  const _CatalogError({required this.message});
+
+  final String message;
 
   @override
-  State<_ProductSearchField> createState() => _ProductSearchFieldState();
+  Widget build(BuildContext context) {
+    return _CatalogMessage(
+      icon: Icons.cloud_off,
+      title: 'Could not load products',
+      message: message,
+      action: FilledButton.icon(
+        onPressed: context.read<ProductCatalog>().load,
+        icon: const Icon(Icons.refresh),
+        label: const Text('Try again'),
+      ),
+    );
+  }
 }
 
-class _ProductSearchFieldState extends State<_ProductSearchField> {
-  final _controller = TextEditingController();
-  ProductFilter? _filter;
+class _EmptyCatalog extends StatelessWidget {
+  const _EmptyCatalog();
 
   @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_handleSearchChanged);
+  Widget build(BuildContext context) {
+    return const _CatalogMessage(
+      icon: Icons.inventory_2_outlined,
+      title: 'The catalog is empty',
+      message: 'Products will appear here when they become available.',
+    );
   }
+}
+
+class _CatalogMessage extends StatelessWidget {
+  const _CatalogMessage({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.action,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final Widget? action;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final nextFilter = context.read<ProductFilter>();
-    if (_filter == nextFilter) return;
-
-    _filter?.removeListener(_syncFromFilter);
-    _filter = nextFilter..addListener(_syncFromFilter);
-    _syncFromFilter();
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 56, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            if (action != null) ...[const SizedBox(height: 16), action!],
+          ],
+        ),
+      ),
+    );
   }
+}
 
-  @override
-  void dispose() {
-    _filter?.removeListener(_syncFromFilter);
-    _controller
-      ..removeListener(_handleSearchChanged)
-      ..dispose();
-    super.dispose();
-  }
+class _ProductSearchField extends StatelessWidget {
+  const _ProductSearchField();
 
-  void _handleSearchChanged() {
-    context.read<ProductFilter>().setQuery(_controller.text);
-    setState(() {});
-  }
-
-  void _syncFromFilter() {
-    final filterQuery = _filter?.query ?? '';
-    if (filterQuery.isEmpty && _controller.text.isNotEmpty) {
-      _controller.clear();
-    }
+  void _openSearch(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const ProductSearchScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: _controller,
-      textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
-        hintText: 'Search products',
-        prefixIcon: const Icon(Icons.search),
-        suffixIcon: _controller.text.isEmpty
-            ? null
-            : IconButton(
-                onPressed: _controller.clear,
-                icon: const Icon(Icons.close),
-                tooltip: 'Clear search',
+    final query = context.select<ProductFilter, String>(
+      (filter) => filter.query,
+    );
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasQuery = query.isNotEmpty;
+
+    return Material(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: () => _openSearch(context),
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          height: 56,
+          child: Row(
+            children: [
+              const SizedBox(width: 12),
+              Icon(Icons.search, color: colorScheme.onSurfaceVariant),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  hasQuery ? query : 'Search products',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: hasQuery
+                        ? colorScheme.onSurface
+                        : colorScheme.outline,
+                  ),
+                ),
               ),
+              if (hasQuery)
+                IconButton(
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    context.read<ProductFilter>().setQuery('');
+                  },
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Clear search',
+                ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ),
       ),
     );
   }

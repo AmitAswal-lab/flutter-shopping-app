@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/product.dart';
+import '../providers/product_catalog.dart';
 import '../providers/wishlist.dart';
 import '../widgets/product_card.dart';
 
@@ -39,8 +39,18 @@ class _WishlistBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final favoriteProducts = context.select<Wishlist, List<Product>>(
-      (wishlist) => wishlist.favoritesFrom(kProducts),
+    final catalog = context.watch<ProductCatalog>();
+
+    if (catalog.isLoading && catalog.products.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (catalog.errorMessage != null && catalog.products.isEmpty) {
+      return _WishlistCatalogError(message: catalog.errorMessage!);
+    }
+
+    final favoriteProducts = context.watch<Wishlist>().favoritesFrom(
+      catalog.products,
     );
 
     if (favoriteProducts.isEmpty) {
@@ -59,6 +69,49 @@ class _WishlistBody extends StatelessWidget {
       itemBuilder: (context, index) {
         return ProductCard(product: favoriteProducts[index]);
       },
+    );
+  }
+}
+
+class _WishlistCatalogError extends StatelessWidget {
+  const _WishlistCatalogError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off,
+              size: 56,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load wishlist products',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: context.read<ProductCatalog>().load,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -12,7 +12,7 @@ class ProductFilter extends ChangeNotifier {
       _query.isNotEmpty || _category != ProductCategory.all;
 
   void setQuery(String value) {
-    final nextQuery = value.trim().toLowerCase();
+    final nextQuery = value.trim();
     if (_query == nextQuery) return;
 
     _query = nextQuery;
@@ -41,7 +41,7 @@ class ProductFilter extends ChangeNotifier {
               '${product.brand} ${product.name} ${product.description} ${product.category.label}'
                   .toLowerCase();
           final matchesQuery =
-              _query.isEmpty || searchableText.contains(_query);
+              _query.isEmpty || searchableText.contains(_query.toLowerCase());
           final matchesCategory =
               _category == ProductCategory.all || product.category == _category;
 

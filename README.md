@@ -9,14 +9,19 @@ The goal of this project is to build a realistic shopping flow step by step whil
 The app currently includes:
 
 - Product browsing with searchable, filterable product cards
-- Expanded local product catalog with brand, rating, stock, and description data
+- Firestore product catalog with brand, rating, stock, and description data
+- Remote product image URLs with bundled asset fallbacks
+- Stock-aware quantity controls and checkout validation
+- Transactional checkout through a callable Cloud Function
 - Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
 - Product detail pages with quantity selection and add-to-cart behavior
 - Cart and checkout flow with order confirmation
 - Wishlist/favorites experience
 - User-scoped cart, wishlist, and order history backed by Cloud Firestore
 - Separate sign-in/create-account flow and signed-in account profile UI
-- Centralized Material theme foundation
+- Firestore-backed delivery profile with checkout prefill
+- Centralized Material theme foundation with persisted local theme preference
+- Local recent search history with `SharedPreferences`
 - Local product and screenshot assets
 
 ## Learning Focus
@@ -27,20 +32,30 @@ Current state-management decisions:
 
 - `Cart` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `ProductFilter` is shared catalog state and is exposed with `ChangeNotifierProvider`.
+- `ProductCatalog` owns the Firestore product subscription and its loading, empty, and error states.
 - `Wishlist` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `OrderHistory` is shared app state and is exposed with `ChangeNotifierProvider`.
 - `AuthController` owns Firebase auth/profile state and is exposed with `ChangeNotifierProvider`.
+- `AppPreferences` owns local app preferences and persists them with `SharedPreferences`.
 - `AuthGate` shows the auth flow before the main shopping shell when no user is signed in.
 - Cart, wishlist, and order history bind to the signed-in user's Firebase UID.
+- Delivery profile fields live on the signed-in user's Firestore document.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
+- `Cart` rejects quantities above the latest known product stock.
 - Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
 - Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
-- Checkout creates an order snapshot before clearing the cart so order history keeps its own copy of purchased items.
+- The `placeOrder` Cloud Function atomically validates stock, decrements inventory, creates the order snapshot, and clears purchased cart items.
+- Checkout refreshes the catalog from the Firestore server and validates every cart quantity before creating an order.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
+- Shop and Wishlist resolve products from the same Firestore-backed catalog.
+- Product cards and details use one `ProductImage` widget for remote loading and local fallback behavior.
 - Cart, wishlist, and order history are persisted under the signed-in user in Firestore.
+- Theme mode and recent searches are stored locally on the device because they are app preferences, not user data.
 - Temporary screen state stays local to the screen.
 - The search text controller stays local to the search field because it is a UI controller, not app data.
 - Product detail quantity is local state because it only matters before the item is added to the cart.
+- Shared stock remains read-only in the customer app; authoritative inventory decrement runs in the trusted Cloud Function.
+- Callable checkout uses server-side cart quantities and catalog prices instead of trusting values supplied by the Flutter client.
 - Checkout form controllers are local state because they only belong to the checkout form.
 - `context.read` is used for actions that update state.
 - `context.select` is used when a widget only needs a specific value from Provider.
@@ -95,22 +110,31 @@ lib/
     cart_item.dart
     order.dart
     product.dart
+    user_profile.dart
   providers/
+    app_preferences.dart
     cart.dart
     auth_controller.dart
     order_history.dart
+    product_catalog.dart
     product_filter.dart
+    user_profile.dart
     wishlist.dart
+  services/
+    checkout_service.dart
   screens/
     account_screen.dart
+    account_profile_screen.dart
     auth_screen.dart
     cart_screen.dart
     checkout_screen.dart
+    delivery_profile_screen.dart
     main_shell_screen.dart
     order_history_screen.dart
     order_success_screen.dart
     product_detail_screen.dart
     product_list_screen.dart
+    settings_screen.dart
     wishlist_screen.dart
   theme/
     app_theme.dart
@@ -119,11 +143,18 @@ lib/
     money.dart
   widgets/
     product_card.dart
+    product_image.dart
     wishlist_icon_button.dart
 
 assets/
+  data/
   products/
   screenshots/
+
+functions/
+  index.js
+  order_utils.js
+  test/
 ```
 
 ## Git Workflow
@@ -158,7 +189,9 @@ flutter analyze
 ## Firebase Setup
 
 Firebase email/password authentication is wired in the app.
-Cloud Firestore is used for user-scoped cart, wishlist, and order history data.
+Cloud Firestore is used for the shared product catalog and user-scoped cart,
+wishlist, and order history data.
+Cloud Functions provides the authenticated `placeOrder` checkout endpoint.
 
 The iOS Firebase app is configured with:
 
@@ -176,6 +209,99 @@ User data is stored under:
 users/{uid}/cartItems/{productId}
 users/{uid}/wishlistItems/{productId}
 users/{uid}/orders/{orderId}
+```
+
+Shared product data is stored under:
+
+```text
+products/{productId}
+```
+
+Each product can include an optional HTTPS image URL:
+
+```text
+imageUrl: "https://..."
+```
+
+When `imageUrl` is missing, still loading, or fails, the app displays the
+bundled `imageAsset` instead. This keeps the catalog usable while remote media
+is being configured.
+
+The bundled `assets/data/products_seed.json` file remains reference data for
+the sample catalog. Catalog imports belong in separate administrator tooling,
+not in the customer app, because shoppers must never be able to overwrite
+prices or inventory.
+
+Product documents are readable by signed-in users but not writable by the
+shopping app:
+
+```text
+match /products/{productId} {
+  allow read: if request.auth != null;
+  allow write: if false;
+}
+```
+
+The version-controlled `firestore.rules` file additionally prevents clients
+from creating or updating order documents. The Admin SDK inside `placeOrder`
+performs those trusted writes.
+
+### Cloud Functions
+
+The callable checkout backend lives in `functions/` and uses the Node.js 22
+runtime.
+
+Install and verify it:
+
+```bash
+cd functions
+npm install
+npm run check
+npm test
+```
+
+Deploy the Firestore rules and callable function:
+
+```bash
+firebase login
+firebase use shopping-app-3caf5
+firebase deploy --only firestore:rules,functions:placeOrder
+```
+
+The Firebase CLI must be signed in with a Google account that has deployment
+access to the `shopping-app-3caf5` project.
+
+### Firebase Storage
+
+Cloud Storage currently requires the Firebase project to use the Blaze plan.
+After creating the default bucket:
+
+1. Upload the four bundled product images.
+2. Copy each file's download URL into the appropriate `imageUrl` entries in
+   `assets/data/products_seed.json`.
+3. Update the corresponding Firestore product documents through trusted
+   administrator tooling.
+
+The current sample catalog already contains the four configured download URLs
+and reuses them across its twelve products.
+
+Product images are public catalog media, while client uploads remain disabled:
+
+```text
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /products/{productImage=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
+```
+
+Delivery profile fields are stored directly on:
+
+```text
+users/{uid}
 ```
 
 Android Firebase setup is not wired yet because the provided Android Firebase app uses:
