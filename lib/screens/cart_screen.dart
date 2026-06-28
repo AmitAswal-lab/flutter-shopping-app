@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/product.dart';
 import '../providers/cart.dart';
 import '../models/cart_item.dart';
+import '../providers/product_catalog.dart';
 import '../utils/money.dart';
 import 'checkout_screen.dart';
 
@@ -28,24 +30,34 @@ class CartScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<Cart>(
-        builder: (context, cart, child) {
+      body: Consumer2<Cart, ProductCatalog>(
+        builder: (context, cart, catalog, child) {
           if (cart.items.isEmpty) {
             return _EmptyCart(onBrowseProducts: onBrowseProducts);
           }
+          final hasStockIssues = cart.items.any((item) {
+            final product = catalog.productById(item.productId);
+            return product == null || item.quantity > product.stockCount;
+          });
+
           return Column(
             children: [
               Expanded(
                 child: ListView.builder(
                   itemCount: cart.items.length,
                   itemBuilder: (context, index) {
-                    return _CartRow(item: cart.items[index]);
+                    final item = cart.items[index];
+                    return _CartRow(
+                      item: item,
+                      product: catalog.productById(item.productId),
+                    );
                   },
                 ),
               ),
               _SummaryBar(
                 totalCount: cart.totalCount,
                 totalPriceCents: cart.totalPriceCents,
+                canCheckout: !hasStockIssues,
               ),
             ],
           );
@@ -100,12 +112,34 @@ class _EmptyCart extends StatelessWidget {
 
 class _CartRow extends StatelessWidget {
   final CartItem item;
+  final Product? product;
 
-  const _CartRow({required this.item});
+  const _CartRow({required this.item, required this.product});
+
+  Future<void> _setQuantity(BuildContext context, int quantity) async {
+    final currentProduct = product;
+    if (currentProduct == null) return;
+
+    try {
+      await context.read<Cart>().setQuantity(
+        item.productId,
+        quantity,
+        availableStock: currentProduct.stockCount,
+      );
+    } on CartStockException catch (error) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final cart = context.read<Cart>();
+    final stockCount = product?.stockCount;
+    final hasStockIssue = stockCount == null || item.quantity > stockCount;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -120,19 +154,34 @@ class _CartRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text('${formatCents(item.priceCents)} each'),
+                if (hasStockIssue) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    stockCount == null
+                        ? 'No longer available'
+                        : stockCount == 0
+                        ? 'Out of stock'
+                        : 'Only $stockCount available',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           IconButton(
             icon: const Icon(Icons.remove_circle_outline),
-            onPressed: () =>
-                cart.setQuantity(item.productId, item.quantity - 1),
+            onPressed: product == null
+                ? () => context.read<Cart>().remove(item.productId)
+                : () => _setQuantity(context, item.quantity - 1),
           ),
           Text('${item.quantity}'),
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: () =>
-                cart.setQuantity(item.productId, item.quantity + 1),
+            onPressed: stockCount == null || item.quantity >= stockCount
+                ? null
+                : () => _setQuantity(context, item.quantity + 1),
           ),
           SizedBox(
             width: 72,
@@ -151,8 +200,13 @@ class _CartRow extends StatelessWidget {
 class _SummaryBar extends StatelessWidget {
   final int totalCount;
   final int totalPriceCents;
+  final bool canCheckout;
 
-  const _SummaryBar({required this.totalCount, required this.totalPriceCents});
+  const _SummaryBar({
+    required this.totalCount,
+    required this.totalPriceCents,
+    required this.canCheckout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -180,15 +234,26 @@ class _SummaryBar extends StatelessWidget {
               ),
             ],
           ),
+          if (!canCheckout) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Adjust unavailable quantities before checkout.',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CheckoutScreen()),
-                );
-              },
+              onPressed: canCheckout
+                  ? () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const CheckoutScreen(),
+                        ),
+                      );
+                    }
+                  : null,
               icon: const Icon(Icons.payment),
               label: const Text('Checkout'),
             ),

@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import '../models/product.dart';
 
@@ -16,13 +14,18 @@ class ProductCatalog extends ChangeNotifier {
   final List<Product> _products = [];
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
   bool _isLoading = false;
-  bool _isSyncing = false;
   String? _errorMessage;
 
   List<Product> get products => List.unmodifiable(_products);
   bool get isLoading => _isLoading;
-  bool get isSyncing => _isSyncing;
   String? get errorMessage => _errorMessage;
+
+  Product? productById(String productId) {
+    for (final product in _products) {
+      if (product.id == productId) return product;
+    }
+    return null;
+  }
 
   Future<void> load() async {
     await _subscription?.cancel();
@@ -40,52 +43,26 @@ class ProductCatalog extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    _subscription = firestore!
-        .collection('products')
-        .orderBy('sortOrder')
-        .snapshots()
-        .listen(_handleSnapshot, onError: _handleError);
+    _subscription = _productsQuery.snapshots().listen(
+      _handleSnapshot,
+      onError: _handleError,
+    );
   }
 
-  Future<bool> syncSampleProducts() async {
-    if (!kDebugMode) {
-      throw StateError('Sample products can only be synced in debug mode.');
+  Future<void> refreshFromServer() async {
+    if (firestore == null) {
+      throw StateError('Product catalog is unavailable.');
     }
-    if (firestore == null || _isSyncing) return false;
-
-    _isSyncing = true;
-    _errorMessage = null;
-    notifyListeners();
 
     try {
-      final source = await rootBundle.loadString(
-        'assets/data/products_seed.json',
+      final snapshot = await _productsQuery.get(
+        const GetOptions(source: Source.server),
       );
-      final records = jsonDecode(source) as List<dynamic>;
-      final batch = firestore!.batch();
-
-      for (final record in records) {
-        final data = Map<String, dynamic>.from(record as Map);
-        final id = data.remove('id') as String;
-        batch.set(firestore!.collection('products').doc(id), {
-          ...data,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-
-      await batch.commit();
-      return true;
-    } on FirebaseException catch (error) {
-      _errorMessage = error.code == 'permission-denied'
-          ? 'Firestore denied catalog writes. Enable temporary product writes.'
-          : 'Could not sync the sample product catalog.';
-      return false;
+      _handleSnapshot(snapshot);
     } catch (_) {
-      _errorMessage = 'The bundled catalog data could not be read.';
-      return false;
-    } finally {
-      _isSyncing = false;
+      _errorMessage = 'Could not verify current product stock.';
       notifyListeners();
+      rethrow;
     }
   }
 
@@ -114,6 +91,10 @@ class ProductCatalog extends ChangeNotifier {
     _isLoading = false;
     _errorMessage = 'Could not load products. Try again.';
     notifyListeners();
+  }
+
+  Query<Map<String, dynamic>> get _productsQuery {
+    return firestore!.collection('products').orderBy('sortOrder');
   }
 
   @override

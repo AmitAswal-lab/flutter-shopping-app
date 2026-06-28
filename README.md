@@ -11,6 +11,8 @@ The app currently includes:
 - Product browsing with searchable, filterable product cards
 - Firestore product catalog with brand, rating, stock, and description data
 - Remote product image URLs with bundled asset fallbacks
+- Stock-aware quantity controls and checkout validation
+- Transactional checkout through a callable Cloud Function
 - Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
 - Product detail pages with quantity selection and add-to-cart behavior
 - Cart and checkout flow with order confirmation
@@ -39,9 +41,11 @@ Current state-management decisions:
 - Cart, wishlist, and order history bind to the signed-in user's Firebase UID.
 - Delivery profile fields live on the signed-in user's Firestore document.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
+- `Cart` rejects quantities above the latest known product stock.
 - Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
 - Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
-- Checkout creates an order snapshot before clearing the cart so order history keeps its own copy of purchased items.
+- The `placeOrder` Cloud Function atomically validates stock, decrements inventory, creates the order snapshot, and clears purchased cart items.
+- Checkout refreshes the catalog from the Firestore server and validates every cart quantity before creating an order.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
 - Shop and Wishlist resolve products from the same Firestore-backed catalog.
 - Product cards and details use one `ProductImage` widget for remote loading and local fallback behavior.
@@ -50,6 +54,8 @@ Current state-management decisions:
 - Temporary screen state stays local to the screen.
 - The search text controller stays local to the search field because it is a UI controller, not app data.
 - Product detail quantity is local state because it only matters before the item is added to the cart.
+- Shared stock remains read-only in the customer app; authoritative inventory decrement runs in the trusted Cloud Function.
+- Callable checkout uses server-side cart quantities and catalog prices instead of trusting values supplied by the Flutter client.
 - Checkout form controllers are local state because they only belong to the checkout form.
 - `context.read` is used for actions that update state.
 - `context.select` is used when a widget only needs a specific value from Provider.
@@ -114,6 +120,8 @@ lib/
     product_filter.dart
     user_profile.dart
     wishlist.dart
+  services/
+    checkout_service.dart
   screens/
     account_screen.dart
     account_profile_screen.dart
@@ -142,6 +150,11 @@ assets/
   data/
   products/
   screenshots/
+
+functions/
+  index.js
+  order_utils.js
+  test/
 ```
 
 ## Git Workflow
@@ -178,6 +191,7 @@ flutter analyze
 Firebase email/password authentication is wired in the app.
 Cloud Firestore is used for the shared product catalog and user-scoped cart,
 wishlist, and order history data.
+Cloud Functions provides the authenticated `placeOrder` checkout endpoint.
 
 The iOS Firebase app is configured with:
 
@@ -213,18 +227,13 @@ When `imageUrl` is missing, still loading, or fails, the app displays the
 bundled `imageAsset` instead. This keeps the catalog usable while remote media
 is being configured.
 
-When the `products` collection is empty, a debug build shows an **Add sample
-products** action on the Shop screen. The same batch operation is available
-from **Account → Settings → Developer → Sync catalog** in debug builds.
+The bundled `assets/data/products_seed.json` file remains reference data for
+the sample catalog. Catalog imports belong in separate administrator tooling,
+not in the customer app, because shoppers must never be able to overwrite
+prices or inventory.
 
-The sync reads every record from `assets/data/products_seed.json` and
-batch-merges it into Firestore by product ID. Catalog content and image URLs
-can therefore be updated in one source file and synchronized without manually
-editing each Firestore document. Temporary product write access is required
-while syncing.
-
-After syncing, product documents should be readable by signed-in users but not
-writable by the shopping app:
+Product documents are readable by signed-in users but not writable by the
+shopping app:
 
 ```text
 match /products/{productId} {
@@ -232,6 +241,35 @@ match /products/{productId} {
   allow write: if false;
 }
 ```
+
+The version-controlled `firestore.rules` file additionally prevents clients
+from creating or updating order documents. The Admin SDK inside `placeOrder`
+performs those trusted writes.
+
+### Cloud Functions
+
+The callable checkout backend lives in `functions/` and uses the Node.js 22
+runtime.
+
+Install and verify it:
+
+```bash
+cd functions
+npm install
+npm run check
+npm test
+```
+
+Deploy the Firestore rules and callable function:
+
+```bash
+firebase login
+firebase use shopping-app-3caf5
+firebase deploy --only firestore:rules,functions:placeOrder
+```
+
+The Firebase CLI must be signed in with a Google account that has deployment
+access to the `shopping-app-3caf5` project.
 
 ### Firebase Storage
 
@@ -241,7 +279,8 @@ After creating the default bucket:
 1. Upload the four bundled product images.
 2. Copy each file's download URL into the appropriate `imageUrl` entries in
    `assets/data/products_seed.json`.
-3. Use **Sync catalog** in the debug Settings screen.
+3. Update the corresponding Firestore product documents through trusted
+   administrator tooling.
 
 The current sample catalog already contains the four configured download URLs
 and reuses them across its twelve products.

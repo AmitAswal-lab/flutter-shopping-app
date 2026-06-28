@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/cart.dart';
 import '../models/cart_item.dart';
 import '../models/product.dart';
+import '../providers/product_catalog.dart';
 import '../utils/money.dart';
 import '../widgets/product_image.dart';
 import '../widgets/wishlist_icon_button.dart';
@@ -20,22 +21,27 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _quantity = 1;
 
-  int get _lineTotalCents => widget.product.priceCents * _quantity;
-
   void _decreaseQuantity() {
     if (_quantity == 1) return;
     setState(() => _quantity--);
   }
 
-  void _increaseQuantity() {
+  void _increaseQuantity(int maxQuantity) {
+    if (_quantity >= maxQuantity) return;
     setState(() => _quantity++);
   }
 
-  Future<void> _addToCart() async {
-    final product = widget.product;
+  Future<void> _addToCart(Product product, int availableToAdd) async {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
+      if (_quantity > availableToAdd) {
+        throw CartStockException(
+          productName: product.name,
+          availableQuantity: product.stockCount,
+        );
+      }
+
       await context.read<Cart>().add(
         CartItem(
           productId: product.id,
@@ -43,7 +49,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           priceCents: product.priceCents,
           quantity: _quantity,
         ),
+        availableStock: product.stockCount,
       );
+    } on CartStockException catch (error) {
+      if (!mounted) return;
+
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error.message)));
+      return;
     } catch (_) {
       if (!mounted) return;
 
@@ -66,10 +80,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final product = widget.product;
+    final product =
+        context.select<ProductCatalog, Product?>(
+          (catalog) => catalog.productById(widget.product.id),
+        ) ??
+        widget.product;
     final cartQuantity = context.select<Cart, int>(
       (cart) => cart.quantityOf(product.id),
     );
+    final remainingStock = product.stockCount - cartQuantity;
+    final availableToAdd = remainingStock > 0 ? remainingStock : 0;
+    final canAddToCart = availableToAdd >= _quantity;
+    final lineTotalCents = product.priceCents * _quantity;
 
     return Scaffold(
       appBar: AppBar(
@@ -103,7 +125,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            cartQuantity == 0
+            availableToAdd == 0
+                ? product.inStock
+                      ? 'All available stock is already in your cart'
+                      : 'Currently out of stock'
+                : cartQuantity == 0
                 ? 'Not in cart yet'
                 : '$cartQuantity already in cart',
             style: TextStyle(color: Theme.of(context).colorScheme.primary),
@@ -115,16 +141,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               Text('Quantity', style: Theme.of(context).textTheme.titleMedium),
               _QuantityStepper(
                 quantity: _quantity,
+                maxQuantity: availableToAdd,
                 onDecrease: _decreaseQuantity,
-                onIncrease: _increaseQuantity,
+                onIncrease: () => _increaseQuantity(availableToAdd),
               ),
             ],
           ),
           const SizedBox(height: 32),
           FilledButton.icon(
-            onPressed: _addToCart,
+            onPressed: canAddToCart
+                ? () => _addToCart(product, availableToAdd)
+                : null,
             icon: const Icon(Icons.add_shopping_cart),
-            label: Text('Add ${formatCents(_lineTotalCents)}'),
+            label: Text(
+              canAddToCart
+                  ? 'Add ${formatCents(lineTotalCents)}'
+                  : 'Stock limit reached',
+            ),
           ),
         ],
       ),
@@ -175,11 +208,13 @@ class _ProductMetaChip extends StatelessWidget {
 
 class _QuantityStepper extends StatelessWidget {
   final int quantity;
+  final int maxQuantity;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
 
   const _QuantityStepper({
     required this.quantity,
+    required this.maxQuantity,
     required this.onDecrease,
     required this.onIncrease,
   });
@@ -203,7 +238,7 @@ class _QuantityStepper extends StatelessWidget {
           ),
         ),
         IconButton.outlined(
-          onPressed: onIncrease,
+          onPressed: quantity >= maxQuantity ? null : onIncrease,
           icon: const Icon(Icons.add),
           tooltip: 'Increase quantity',
         ),
