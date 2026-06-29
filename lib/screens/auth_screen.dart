@@ -52,13 +52,12 @@ class _FirebaseSetupMessage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Email and password auth is wired in the app, but Firebase configuration files are not in the project yet.',
+              'Email and password auth is available, but Firebase could not initialize on this device.',
             ),
             const SizedBox(height: 16),
-            const Text('Needed for iOS simulator:'),
-            const SizedBox(height: 8),
-            const Text('Bundle ID: com.example.shoppingApp'),
-            const Text('File: ios/Runner/GoogleService-Info.plist'),
+            const Text(
+              'Check that this platform has the correct Firebase configuration file and that its app identifier matches the build.',
+            ),
             if (setupError != null) ...[
               const SizedBox(height: 16),
               Text(

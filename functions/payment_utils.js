@@ -1,6 +1,6 @@
 "use strict";
 
-const PAYMENT_OUTCOMES = new Set(["paid", "paymentFailed", "cancelled"]);
+const PAYMENT_OUTCOMES = new Set(["paymentFailed", "cancelled"]);
 
 class PaymentInputError extends Error {}
 
@@ -20,6 +20,53 @@ function parsePaymentRequest(data) {
   }
 
   return {orderId, outcome};
+}
+
+function parseRazorpayOrderRequest(data) {
+  return {
+    orderId: parseOrderId(data),
+  };
+}
+
+function parseRazorpayVerificationRequest(data) {
+  const orderId = parseOrderId(data);
+  const razorpayOrderId = requireTrimmedString(
+    data.razorpayOrderId,
+    "Razorpay order ID",
+    1,
+    128,
+  );
+  const razorpayPaymentId = requireTrimmedString(
+    data.razorpayPaymentId,
+    "Razorpay payment ID",
+    1,
+    128,
+  );
+  const razorpaySignature = requireTrimmedString(
+    data.razorpaySignature,
+    "Razorpay signature",
+    64,
+    128,
+  );
+
+  return {
+    orderId,
+    razorpayOrderId,
+    razorpayPaymentId,
+    razorpaySignature,
+  };
+}
+
+function parseOrderId(data) {
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    throw new PaymentInputError("Payment data is required.");
+  }
+
+  const orderId = requireTrimmedString(data.orderId, "Order ID", 8, 128);
+  if (!/^[A-Za-z0-9_-]+$/.test(orderId)) {
+    throw new PaymentInputError("Order ID is invalid.");
+  }
+  return orderId;
 }
 
 function parseStoredOrderItems(value) {
@@ -61,5 +108,7 @@ function requireTrimmedString(value, label, minimum, maximum) {
 module.exports = {
   PaymentInputError,
   parsePaymentRequest,
+  parseRazorpayOrderRequest,
+  parseRazorpayVerificationRequest,
   parseStoredOrderItems,
 };

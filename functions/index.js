@@ -1,5 +1,6 @@
 "use strict";
 
+const {randomUUID} = require("node:crypto");
 const {
   getFirestore,
   FieldValue,
@@ -7,8 +8,10 @@ const {
 } = require("firebase-admin/firestore");
 const {initializeApp} = require("firebase-admin/app");
 const {logger} = require("firebase-functions");
+const {defineSecret} = require("firebase-functions/params");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
+const Razorpay = require("razorpay");
 
 const {
   CheckoutInputError,
@@ -17,14 +20,19 @@ const {
 const {
   PaymentInputError,
   parsePaymentRequest,
+  parseRazorpayOrderRequest,
+  parseRazorpayVerificationRequest,
   parseStoredOrderItems,
 } = require("./payment_utils");
+const {verifyRazorpaySignature} = require("./razorpay_utils");
 
 initializeApp();
 
 const db = getFirestore();
 const PAYMENT_RESERVATION_MINUTES = 15;
 const PENDING_PAYMENT = "pendingPayment";
+const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
+const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
 
 exports.placeOrder = onCall(
   {region: "us-central1", invoker: "public"},
@@ -238,6 +246,220 @@ exports.resolvePayment = onCall(
   },
 );
 
+exports.createRazorpayOrder = onCall(
+  {
+    region: "us-central1",
+    invoker: "public",
+    secrets: [razorpayKeyId, razorpayKeySecret],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to start payment.",
+      );
+    }
+
+    let payment;
+    try {
+      payment = parseRazorpayOrderRequest(request.data);
+    } catch (error) {
+      if (error instanceof PaymentInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    const userId = request.auth.uid;
+    const orderRef = db
+      .collection("users")
+      .doc(userId)
+      .collection("orders")
+      .doc(payment.orderId);
+    const creationToken = randomUUID();
+    const claim = await db.runTransaction(async (transaction) => {
+      const orderSnapshot = await transaction.get(orderRef);
+      if (!orderSnapshot.exists) {
+        throw new HttpsError("not-found", "Order was not found.");
+      }
+
+      const order = orderSnapshot.data();
+      ensurePendingOrder(order);
+      ensureReservationActive(order);
+      if (order.razorpayOrderId) {
+        return {order, shouldCreate: false};
+      }
+      if (order.razorpayOrderCreationToken) {
+        throw new HttpsError(
+          "aborted",
+          "Razorpay Checkout is already being prepared. Try again.",
+        );
+      }
+
+      transaction.update(orderRef, {
+        razorpayOrderCreationStartedAt: FieldValue.serverTimestamp(),
+        razorpayOrderCreationToken: creationToken,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return {order, shouldCreate: true};
+    });
+
+    if (!claim.shouldCreate) {
+      return razorpayCheckoutResult(
+        orderRef.id,
+        claim.order,
+        razorpayKeyId.value(),
+        request.auth.token.email,
+      );
+    }
+
+    let gatewayOrder;
+    try {
+      const razorpay = new Razorpay({
+        key_id: razorpayKeyId.value(),
+        key_secret: razorpayKeySecret.value(),
+      });
+      gatewayOrder = await razorpay.orders.create({
+        amount: claim.order.totalPriceCents,
+        currency: "INR",
+        receipt: orderRef.id,
+        notes: {
+          appOrderId: orderRef.id,
+          userId,
+        },
+      });
+    } catch (error) {
+      await releaseRazorpayOrderClaim(orderRef, creationToken);
+      logger.error("Razorpay order creation failed", {
+        userId,
+        orderId: orderRef.id,
+        error,
+      });
+      throw new HttpsError(
+        "unavailable",
+        "Could not start Razorpay Checkout. Try again.",
+      );
+    }
+
+    const currentOrder = await db.runTransaction(async (transaction) => {
+      const currentSnapshot = await transaction.get(orderRef);
+      if (!currentSnapshot.exists) {
+        throw new HttpsError("not-found", "Order was not found.");
+      }
+
+      const current = currentSnapshot.data();
+      ensurePendingOrder(current);
+      ensureReservationActive(current);
+      if (current.razorpayOrderCreationToken !== creationToken) {
+        throw new HttpsError(
+          "aborted",
+          "Razorpay Checkout preparation was interrupted. Try again.",
+        );
+      }
+
+      transaction.update(orderRef, {
+        paymentProvider: "razorpay",
+        razorpayOrderId: gatewayOrder.id,
+        razorpayOrderCreationStartedAt: FieldValue.delete(),
+        razorpayOrderCreationToken: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return {...current, razorpayOrderId: gatewayOrder.id};
+    });
+
+    return razorpayCheckoutResult(
+      orderRef.id,
+      currentOrder,
+      razorpayKeyId.value(),
+      request.auth.token.email,
+    );
+  },
+);
+
+exports.verifyRazorpayPayment = onCall(
+  {
+    region: "us-central1",
+    invoker: "public",
+    secrets: [razorpayKeySecret],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to verify payment.",
+      );
+    }
+
+    let payment;
+    try {
+      payment = parseRazorpayVerificationRequest(request.data);
+    } catch (error) {
+      if (error instanceof PaymentInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    const orderRef = db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("orders")
+      .doc(payment.orderId);
+    const orderSnapshot = await orderRef.get();
+    if (!orderSnapshot.exists) {
+      throw new HttpsError("not-found", "Order was not found.");
+    }
+
+    const order = orderSnapshot.data();
+    if (order.razorpayOrderId !== payment.razorpayOrderId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Razorpay order does not match this checkout.",
+      );
+    }
+    if (
+      !verifyRazorpaySignature({
+        razorpayOrderId: order.razorpayOrderId,
+        razorpayPaymentId: payment.razorpayPaymentId,
+        razorpaySignature: payment.razorpaySignature,
+        secret: razorpayKeySecret.value(),
+      })
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "Payment signature verification failed.",
+      );
+    }
+
+    return db.runTransaction(async (transaction) => {
+      const currentSnapshot = await transaction.get(orderRef);
+      if (!currentSnapshot.exists) {
+        throw new HttpsError("not-found", "Order was not found.");
+      }
+
+      const current = currentSnapshot.data();
+      if (current.status === "paid") {
+        return paymentResult(orderRef.id, current);
+      }
+      ensurePendingOrder(current);
+      if (current.razorpayOrderId !== payment.razorpayOrderId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Razorpay order does not match this checkout.",
+        );
+      }
+
+      transaction.update(orderRef, {
+        paidAt: FieldValue.serverTimestamp(),
+        razorpayPaymentId: payment.razorpayPaymentId,
+        status: "paid",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return paymentResult(orderRef.id, {...current, status: "paid"});
+    });
+  },
+);
+
 exports.expirePaymentReservations = onSchedule(
   {
     region: "us-central1",
@@ -247,14 +469,13 @@ exports.expirePaymentReservations = onSchedule(
   async () => {
     const expiredReservations = await db
       .collectionGroup("orders")
+      .where("status", "==", PENDING_PAYMENT)
       .where("reservationExpiresAt", "<=", Timestamp.now())
       .limit(50)
       .get();
 
     let expiredCount = 0;
     for (const order of expiredReservations.docs) {
-      if (order.data().status !== PENDING_PAYMENT) continue;
-
       try {
         const result = await resolvePendingOrder(order.ref, "expired");
         if (result.status === "expired") expiredCount += 1;
@@ -291,15 +512,6 @@ async function resolvePendingOrder(orderRef, requestedOutcome) {
         reservationExpiresAt instanceof Timestamp &&
         reservationExpiresAt.toMillis() <= Date.now();
       const outcome = isExpired ? "expired" : requestedOutcome;
-
-      if (outcome === "paid") {
-        transaction.update(orderRef, {
-          paidAt: FieldValue.serverTimestamp(),
-          status: "paid",
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        return paymentResult(orderRef.id, {...order, status: "paid"});
-      }
 
       const items = parseStoredOrderItems(order.items);
       const productRefs = items.map((item) =>
@@ -341,6 +553,27 @@ async function resolvePendingOrder(orderRef, requestedOutcome) {
   }
 }
 
+async function releaseRazorpayOrderClaim(orderRef, creationToken) {
+  try {
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(orderRef);
+      if (
+        !snapshot.exists ||
+        snapshot.data().razorpayOrderCreationToken !== creationToken
+      ) {
+        return;
+      }
+      transaction.update(orderRef, {
+        razorpayOrderCreationStartedAt: FieldValue.delete(),
+        razorpayOrderCreationToken: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+  } catch (error) {
+    logger.error("Could not release Razorpay order creation claim", {error});
+  }
+}
+
 function paymentResult(orderId, order) {
   return {
     orderId,
@@ -348,5 +581,42 @@ function paymentResult(orderId, order) {
     paymentMethod: order.paymentMethod,
     status: order.status,
     totalPriceCents: order.totalPriceCents,
+  };
+}
+
+function ensurePendingOrder(order) {
+  if (order.status !== PENDING_PAYMENT) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Order is already ${order.status}.`,
+    );
+  }
+  if (!Number.isInteger(order.totalPriceCents) || order.totalPriceCents <= 0) {
+    throw new HttpsError("internal", "Order total is invalid.");
+  }
+}
+
+function ensureReservationActive(order) {
+  const expiresAt = order.reservationExpiresAt;
+  if (
+    expiresAt instanceof Timestamp &&
+    expiresAt.toMillis() <= Date.now()
+  ) {
+    throw new HttpsError(
+      "deadline-exceeded",
+      "The payment reservation has expired.",
+    );
+  }
+}
+
+function razorpayCheckoutResult(orderId, order, keyId, email) {
+  return {
+    amount: order.totalPriceCents,
+    currency: "INR",
+    customerName: order.customerName,
+    email: typeof email === "string" ? email : "",
+    keyId,
+    orderId,
+    razorpayOrderId: order.razorpayOrderId,
   };
 }

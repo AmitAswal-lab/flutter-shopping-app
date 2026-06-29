@@ -13,10 +13,10 @@ The app currently includes:
 - Remote product image URLs with bundled asset fallbacks
 - Stock-aware quantity controls and checkout validation
 - Transactional checkout through a callable Cloud Function
-- Provider-neutral test payment flow with stock reservations and order statuses
+- Razorpay Test Mode checkout with stock reservations and order statuses
 - Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
 - Product detail pages with quantity selection and add-to-cart behavior
-- Cart, checkout, payment simulation, and order confirmation flow
+- Cart, Razorpay checkout, payment verification, and order confirmation flow
 - Wishlist/favorites experience
 - User-scoped cart, wishlist, and order history backed by Cloud Firestore
 - Separate sign-in/create-account flow and signed-in account profile UI
@@ -46,7 +46,9 @@ Current state-management decisions:
 - Search and category mutations live in `ProductFilter`, such as `setQuery`, `setCategory`, and `clear`.
 - Favorite mutations live in `Wishlist`, such as `toggle`, `remove`, and `clear`.
 - The `placeOrder` Cloud Function atomically validates stock, reserves inventory, creates a `pendingPayment` order, and clears purchased cart items.
-- The `resolvePayment` Cloud Function changes pending orders to paid, failed, or cancelled and restores reserved stock when payment is not completed.
+- Razorpay orders are created on the backend with credentials stored in Firebase Secret Manager.
+- The `verifyRazorpayPayment` Cloud Function verifies Razorpay's HMAC signature before changing an order to paid.
+- The `resolvePayment` Cloud Function handles failed or cancelled payments and restores reserved stock.
 - A scheduled function expires abandoned payment reservations and restores their stock.
 - Checkout refreshes the catalog from the Firestore server and validates every cart quantity before creating an order.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
@@ -59,7 +61,7 @@ Current state-management decisions:
 - Product detail quantity is local state because it only matters before the item is added to the cart.
 - Shared stock remains read-only in the customer app; authoritative inventory decrement runs in the trusted Cloud Function.
 - Callable checkout uses server-side cart quantities and catalog prices instead of trusting values supplied by the Flutter client.
-- Order status and payment resolution are backend-owned; the Flutter app can request a transition but cannot write one directly.
+- Order status and payment resolution are backend-owned; the Flutter app cannot mark an order paid directly.
 - Checkout form controllers are local state because they only belong to the checkout form.
 - `context.read` is used for actions that update state.
 - `context.select` is used when a widget only needs a specific value from Provider.
@@ -252,9 +254,9 @@ checkout and payment functions performs those trusted writes.
 
 ### Cloud Functions
 
-The checkout and provider-neutral test payment backend lives in `functions/`
-and uses the Node.js 22 runtime. Payment reservations expire after 15 minutes;
-the scheduled cleanup checks for abandoned reservations every 15 minutes.
+The checkout and Razorpay Test Mode backend lives in `functions/` and uses the
+Node.js 22 runtime. Payment reservations expire after 15 minutes; the scheduled
+cleanup checks for abandoned reservations every 15 minutes.
 
 Install and verify it:
 
@@ -270,8 +272,15 @@ Deploy the Firestore rules and callable function:
 ```bash
 firebase login
 firebase use shopping-app-3caf5
-firebase deploy --only firestore:rules,functions
+firebase functions:secrets:set RAZORPAY_KEY_ID
+firebase functions:secrets:set RAZORPAY_KEY_SECRET
+firebase deploy --only firestore,functions
 ```
+
+Razorpay's Key ID and Key Secret are stored only in Firebase Secret Manager.
+They must not be committed to the Flutter app or repository. Test Mode uses
+simulated transactions; accepting real payments requires separate Live Mode
+credentials and production payment safeguards such as webhook handling.
 
 The Firebase CLI must be signed in with a Google account that has deployment
 access to the `shopping-app-3caf5` project.

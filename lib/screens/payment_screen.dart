@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 import '../models/payment.dart';
 import '../services/payment_service.dart';
@@ -28,35 +31,122 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  _TestPaymentResponse _response = _TestPaymentResponse.approve;
+  late final Razorpay _razorpay;
   bool _isResolving = false;
 
-  Future<void> _resolve(PaymentOutcome outcome) async {
+  @override
+  void initState() {
+    super.initState();
+    _razorpay = Razorpay()
+      ..on(Razorpay.EVENT_PAYMENT_SUCCESS, _onPaymentSuccess)
+      ..on(Razorpay.EVENT_PAYMENT_ERROR, _onPaymentError)
+      ..on(Razorpay.EVENT_EXTERNAL_WALLET, _onExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
+  Future<void> _openRazorpay() async {
     if (_isResolving) return;
 
-    final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isResolving = true);
+
+    try {
+      final session = await context.read<PaymentService>().createRazorpayOrder(
+        orderId: widget.orderId,
+      );
+      if (!mounted) return;
+
+      setState(() => _isResolving = false);
+      _razorpay.open({
+        'key': session.keyId,
+        'amount': session.amount,
+        'currency': session.currency,
+        'name': 'Shopping App',
+        'description': 'Order ${session.appOrderId}',
+        'order_id': session.razorpayOrderId,
+        'prefill': {'email': session.email, 'name': session.customerName},
+        'retry': {'enabled': true, 'max_count': 2},
+        'theme': {'color': '#006C50'},
+      });
+    } on PaymentFailure catch (error) {
+      if (!mounted) return;
+
+      setState(() => _isResolving = false);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  void _onPaymentSuccess(PaymentSuccessResponse response) {
+    unawaited(_verifyPayment(response));
+  }
+
+  Future<void> _verifyPayment(PaymentSuccessResponse response) async {
+    final paymentId = response.paymentId;
+    final razorpayOrderId = response.orderId;
+    final signature = response.signature;
+    if (paymentId == null || razorpayOrderId == null || signature == null) {
+      _showMessage('Razorpay returned an incomplete payment response.');
+      return;
+    }
+
+    final navigator = Navigator.of(context);
+    setState(() => _isResolving = true);
+
+    try {
+      final result = await context.read<PaymentService>().verifyRazorpayPayment(
+        orderId: widget.orderId,
+        razorpayOrderId: razorpayOrderId,
+        razorpayPaymentId: paymentId,
+        razorpaySignature: signature,
+      );
+      if (!mounted) return;
+
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => OrderSuccessScreen(
+            customerName: result.customerName,
+            totalPriceCents: result.totalPriceCents,
+          ),
+        ),
+        (route) => route.isFirst,
+      );
+    } on PaymentFailure catch (error) {
+      if (!mounted) return;
+
+      setState(() => _isResolving = false);
+      _showMessage(error.message);
+    }
+  }
+
+  void _onPaymentError(PaymentFailureResponse response) {
+    if (!mounted) return;
+
+    if (response.code == Razorpay.PAYMENT_CANCELLED) {
+      setState(() => _isResolving = false);
+      _showMessage('Payment was closed. Your reservation is still active.');
+      return;
+    }
+
+    unawaited(_resolveFailedPayment(response.message));
+  }
+
+  Future<void> _resolveFailedPayment(String? gatewayMessage) async {
+    final navigator = Navigator.of(context);
     setState(() => _isResolving = true);
 
     try {
       final result = await context.read<PaymentService>().resolve(
         orderId: widget.orderId,
-        outcome: outcome,
+        outcome: PaymentOutcome.paymentFailed,
       );
       if (!mounted) return;
-
-      if (result.status.isSuccessful) {
-        navigator.pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => OrderSuccessScreen(
-              customerName: result.customerName,
-              totalPriceCents: result.totalPriceCents,
-            ),
-          ),
-          (route) => route.isFirst,
-        );
-        return;
-      }
 
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(
@@ -68,10 +158,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (!mounted) return;
 
       setState(() => _isResolving = false);
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(error.message)));
+      _showMessage(gatewayMessage ?? error.message);
     }
+  }
+
+  void _onExternalWallet(ExternalWalletResponse response) {
+    final wallet = response.walletName;
+    if (wallet != null) _showMessage('$wallet selected.');
   }
 
   Future<void> _cancelPayment() async {
@@ -95,9 +188,37 @@ class _PaymentScreenState extends State<PaymentScreen> {
       },
     );
 
-    if (shouldCancel == true && mounted) {
-      await _resolve(PaymentOutcome.cancelled);
+    if (shouldCancel != true || !mounted) return;
+
+    final navigator = Navigator.of(context);
+    setState(() => _isResolving = true);
+
+    try {
+      final result = await context.read<PaymentService>().resolve(
+        orderId: widget.orderId,
+        outcome: PaymentOutcome.cancelled,
+      );
+      if (!mounted) return;
+
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => PaymentResultScreen(status: result.status),
+        ),
+        (route) => route.isFirst,
+      );
+    } on PaymentFailure catch (error) {
+      if (!mounted) return;
+
+      setState(() => _isResolving = false);
+      _showMessage(error.message);
     }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -112,7 +233,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           children: [
             Text('Payment summary', style: textTheme.titleLarge),
             const SizedBox(height: 16),
-            _SummaryRow(label: 'Method', value: widget.paymentMethod.label),
+            _SummaryRow(label: 'Gateway', value: widget.paymentMethod.label),
             const SizedBox(height: 12),
             _SummaryRow(
               label: 'Amount',
@@ -128,52 +249,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
             ],
             const Divider(height: 40),
-            Text('Test response', style: textTheme.titleMedium),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<_TestPaymentResponse>(
-                segments: const [
-                  ButtonSegment(
-                    value: _TestPaymentResponse.approve,
-                    icon: Icon(Icons.check_circle_outline),
-                    label: Text('Approve'),
-                  ),
-                  ButtonSegment(
-                    value: _TestPaymentResponse.decline,
-                    icon: Icon(Icons.cancel_outlined),
-                    label: Text('Decline'),
-                  ),
-                ],
-                selected: {_response},
-                onSelectionChanged: _isResolving
-                    ? null
-                    : (selection) {
-                        setState(() => _response = selection.first);
-                      },
-              ),
-            ),
-            const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: _isResolving
-                  ? null
-                  : () => _resolve(
-                      _response == _TestPaymentResponse.approve
-                          ? PaymentOutcome.paid
-                          : PaymentOutcome.paymentFailed,
-                    ),
+              onPressed: _isResolving ? null : _openRazorpay,
               icon: _isResolving
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.lock_outline),
-              label: const Text('Complete payment'),
+              label: const Text('Pay with Razorpay'),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: _isResolving ? null : _cancelPayment,
-              child: const Text('Cancel payment'),
+              child: const Text('Cancel order'),
             ),
           ],
         ),
@@ -181,8 +270,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 }
-
-enum _TestPaymentResponse { approve, decline }
 
 class _SummaryRow extends StatelessWidget {
   const _SummaryRow({required this.label, required this.value});

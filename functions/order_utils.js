@@ -1,7 +1,7 @@
 "use strict";
 
 const MAX_CART_ITEMS = 50;
-const PAYMENT_METHODS = new Set(["testCard", "testUpi"]);
+const PAYMENT_METHODS = new Set(["razorpay"]);
 
 class CheckoutInputError extends Error {}
 

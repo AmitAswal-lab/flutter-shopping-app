@@ -6,18 +6,54 @@ const assert = require("node:assert/strict");
 const {
   PaymentInputError,
   parsePaymentRequest,
+  parseRazorpayOrderRequest,
+  parseRazorpayVerificationRequest,
   parseStoredOrderItems,
 } = require("../payment_utils");
 
-test("parses a supported payment outcome", () => {
+test("parses a supported non-success payment outcome", () => {
   assert.deepEqual(
     parsePaymentRequest({
       orderId: "order_123",
-      outcome: "paid",
+      outcome: "paymentFailed",
     }),
     {
       orderId: "order_123",
-      outcome: "paid",
+      outcome: "paymentFailed",
+    },
+  );
+});
+
+test("prevents clients from marking their own payment paid", () => {
+  assert.throws(
+    () =>
+      parsePaymentRequest({
+        orderId: "order_123",
+        outcome: "paid",
+      }),
+    PaymentInputError,
+  );
+});
+
+test("parses Razorpay order creation input", () => {
+  assert.deepEqual(parseRazorpayOrderRequest({orderId: "order_123"}), {
+    orderId: "order_123",
+  });
+});
+
+test("parses Razorpay verification fields", () => {
+  assert.deepEqual(
+    parseRazorpayVerificationRequest({
+      orderId: "order_123",
+      razorpayOrderId: "order_gateway_123",
+      razorpayPaymentId: "pay_123",
+      razorpaySignature: "a".repeat(64),
+    }),
+    {
+      orderId: "order_123",
+      razorpayOrderId: "order_gateway_123",
+      razorpayPaymentId: "pay_123",
+      razorpaySignature: "a".repeat(64),
     },
   );
 });

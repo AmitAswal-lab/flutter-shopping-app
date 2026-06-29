@@ -1,6 +1,5 @@
 enum PaymentMethod {
-  testCard('testCard', 'Test card'),
-  testUpi('testUpi', 'Test UPI');
+  razorpay('razorpay', 'Razorpay Test Mode');
 
   const PaymentMethod(this.wireValue, this.label);
 
@@ -10,13 +9,12 @@ enum PaymentMethod {
   static PaymentMethod fromWireValue(Object? value) {
     return PaymentMethod.values.firstWhere(
       (method) => method.wireValue == value,
-      orElse: () => PaymentMethod.testCard,
+      orElse: () => PaymentMethod.razorpay,
     );
   }
 }
 
 enum PaymentOutcome {
-  paid('paid'),
   paymentFailed('paymentFailed'),
   cancelled('cancelled');
 

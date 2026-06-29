@@ -12,14 +12,14 @@ test("parses and deduplicates checkout product IDs", () => {
   const result = parseCheckoutRequest({
     checkoutId: "checkout_123",
     deliveryAddress: "123 Test Street",
-    paymentMethod: "testCard",
+    paymentMethod: "razorpay",
     productIds: ["p1", "p2", "p1"],
   });
 
   assert.deepEqual(result, {
     checkoutId: "checkout_123",
     deliveryAddress: "123 Test Street",
-    paymentMethod: "testCard",
+    paymentMethod: "razorpay",
     productIds: ["p1", "p2"],
   });
 });
@@ -30,7 +30,7 @@ test("rejects empty carts", () => {
       parseCheckoutRequest({
         checkoutId: "checkout_123",
         deliveryAddress: "123 Test Street",
-        paymentMethod: "testCard",
+        paymentMethod: "razorpay",
         productIds: [],
       }),
     CheckoutInputError,
@@ -43,7 +43,7 @@ test("rejects invalid checkout IDs", () => {
       parseCheckoutRequest({
         checkoutId: "bad/id",
         deliveryAddress: "123 Test Street",
-        paymentMethod: "testCard",
+        paymentMethod: "razorpay",
         productIds: ["p1"],
       }),
     CheckoutInputError,

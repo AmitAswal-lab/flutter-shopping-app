@@ -24,7 +24,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _isPlacingOrder = false;
   bool _hasPrefilledProfile = false;
   String? _checkoutId;
-  PaymentMethod _paymentMethod = PaymentMethod.testCard;
 
   @override
   void didChangeDependencies() {
@@ -98,7 +97,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         checkoutId: _checkoutId!,
         deliveryAddress: deliveryAddress,
         items: cart.items,
-        paymentMethod: _paymentMethod,
+        paymentMethod: PaymentMethod.razorpay,
       );
 
       if (!mounted) return;
@@ -209,30 +208,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: SegmentedButton<PaymentMethod>(
-                              segments: const [
-                                ButtonSegment(
-                                  value: PaymentMethod.testCard,
-                                  icon: Icon(Icons.credit_card),
-                                  label: Text('Test card'),
-                                ),
-                                ButtonSegment(
-                                  value: PaymentMethod.testUpi,
-                                  icon: Icon(Icons.qr_code),
-                                  label: Text('Test UPI'),
-                                ),
-                              ],
-                              selected: {_paymentMethod},
-                              onSelectionChanged: _isPlacingOrder
-                                  ? null
-                                  : (selection) {
-                                      setState(
-                                        () => _paymentMethod = selection.first,
-                                      );
-                                    },
-                            ),
+                          const ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.verified_user_outlined),
+                            title: Text('Razorpay Test Mode'),
+                            subtitle: Text('Card, UPI and other test methods'),
+                            trailing: Text('TEST'),
                           ),
                           const SizedBox(height: 24),
                           FilledButton.icon(

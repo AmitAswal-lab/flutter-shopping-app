@@ -5,7 +5,7 @@ import 'package:shopping_app/models/payment.dart';
 void main() {
   group('Payment models', () {
     test('maps stored payment and order values', () {
-      expect(PaymentMethod.fromWireValue('testUpi'), PaymentMethod.testUpi);
+      expect(PaymentMethod.fromWireValue('razorpay'), PaymentMethod.razorpay);
       expect(
         OrderStatus.fromWireValue('pendingPayment'),
         OrderStatus.pendingPayment,
@@ -44,7 +44,7 @@ Order _pendingOrder(DateTime expiresAt) {
     deliveryAddress: '123 Test Street',
     createdAt: DateTime.now(),
     items: const [],
-    paymentMethod: PaymentMethod.testCard,
+    paymentMethod: PaymentMethod.razorpay,
     reservationExpiresAt: expiresAt,
     status: OrderStatus.pendingPayment,
   );
