@@ -112,45 +112,9 @@ assets/screenshots/
 ```text
 lib/
   main.dart
-  models/
-    cart_item.dart
-    order.dart
-    product.dart
-    user_profile.dart
-  providers/
-    app_preferences.dart
-    cart.dart
-    auth_controller.dart
-    order_history.dart
-    product_catalog.dart
-    product_filter.dart
-    user_profile.dart
-    wishlist.dart
-  services/
-    checkout_service.dart
-  screens/
-    account_screen.dart
-    account_profile_screen.dart
-    auth_screen.dart
-    cart_screen.dart
-    checkout_screen.dart
-    delivery_profile_screen.dart
-    main_shell_screen.dart
-    order_history_screen.dart
-    order_success_screen.dart
-    product_detail_screen.dart
-    product_list_screen.dart
-    settings_screen.dart
-    wishlist_screen.dart
-  theme/
-    app_theme.dart
-  utils/
-    date_time_format.dart
-    money.dart
-  widgets/
-    product_card.dart
-    product_image.dart
-    wishlist_icon_button.dart
+  app/       # Bootstrap, dependency composition, and app-wide flow
+  core/      # Shared theme and formatting utilities
+  features/  # Feature-first domain, data, and presentation code
 
 assets/
   data/
@@ -162,6 +126,12 @@ functions/
   order_utils.js
   test/
 ```
+
+The app uses a pragmatic feature-first layered architecture with
+Provider-based presentation controllers. See
+[Architecture Restructuring Report](docs/architecture_restructuring.md) for
+the decisions, dependency rules, migration process, tradeoffs, and
+interview-ready explanation.
 
 ## Git Workflow
 
