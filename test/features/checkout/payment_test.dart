@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_app/features/checkout/domain/models/payment.dart';
 import 'package:shopping_app/features/orders/domain/models/order.dart';
+import 'package:shopping_app/features/orders/domain/models/order_status.dart';
 
 void main() {
   group('Payment models', () {

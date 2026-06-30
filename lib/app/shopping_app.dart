@@ -12,6 +12,7 @@ import 'package:shopping_app/features/catalog/presentation/controllers/product_c
 import 'package:shopping_app/features/catalog/presentation/controllers/product_filter.dart';
 import 'package:shopping_app/features/checkout/data/services/checkout_service.dart';
 import 'package:shopping_app/features/checkout/data/services/payment_service.dart';
+import 'package:shopping_app/features/orders/data/services/order_lifecycle_service.dart';
 import 'package:shopping_app/features/orders/presentation/controllers/order_history.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
 import 'package:shopping_app/features/settings/presentation/controllers/app_preferences.dart';
@@ -49,6 +50,11 @@ class ShoppingApp extends StatelessWidget {
           create: (_) => firebaseSetup.isConfigured
               ? PaymentService.configured()
               : const PaymentService.unconfigured(),
+        ),
+        Provider(
+          create: (_) => firebaseSetup.isConfigured
+              ? OrderLifecycleService.configured()
+              : const OrderLifecycleService.unconfigured(),
         ),
         ChangeNotifierProvider(create: (_) => ProductFilter()),
         ChangeNotifierProvider(create: (_) => Wishlist(firestore: firestore)),

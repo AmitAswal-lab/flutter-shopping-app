@@ -25,11 +25,17 @@ const {
   parseStoredOrderItems,
 } = require("./payment_utils");
 const {verifyRazorpaySignature} = require("./razorpay_utils");
+const {
+  OrderLifecycleInputError,
+  nextLifecycleTransition,
+  parseOrderLifecycleRequest,
+} = require("./order_lifecycle_utils");
 
 initializeApp();
 
 const db = getFirestore();
 const PAYMENT_RESERVATION_MINUTES = 15;
+const DEMO_LIFECYCLE_DELAY_SECONDS = 30;
 const PENDING_PAYMENT = "pendingPayment";
 const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
@@ -493,6 +499,145 @@ exports.expirePaymentReservations = onSchedule(
     });
   },
 );
+
+exports.startOrderLifecycleDemo = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to simulate an order lifecycle.",
+      );
+    }
+
+    let input;
+    try {
+      input = parseOrderLifecycleRequest(request.data);
+    } catch (error) {
+      if (error instanceof OrderLifecycleInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    const orderRef = db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("orders")
+      .doc(input.orderId);
+
+    return db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(orderRef);
+      if (!snapshot.exists) {
+        throw new HttpsError("not-found", "Order was not found.");
+      }
+
+      const order = snapshot.data();
+      if (!nextLifecycleTransition(order.status)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This order cannot start the delivery simulation.",
+        );
+      }
+
+      const nextLifecycleAt = Timestamp.fromMillis(
+        Date.now() + DEMO_LIFECYCLE_DELAY_SECONDS * 1000,
+      );
+      const updates = {
+        lifecycleDemoEnabled: true,
+        nextLifecycleAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (order.status === "confirmed") {
+        updates.status = "paid";
+        updates.paidAt = order.paidAt || order.createdAt ||
+          FieldValue.serverTimestamp();
+      }
+
+      transaction.update(orderRef, updates);
+      return {
+        nextLifecycleAtMillis: nextLifecycleAt.toMillis(),
+        status: updates.status || order.status,
+      };
+    });
+  },
+);
+
+exports.advanceOrderLifecycleDemos = onSchedule(
+  {
+    region: "us-central1",
+    schedule: "every 1 minutes",
+    timeZone: "UTC",
+  },
+  async () => {
+    const dueOrders = await db
+      .collectionGroup("orders")
+      .where("lifecycleDemoEnabled", "==", true)
+      .where("nextLifecycleAt", "<=", Timestamp.now())
+      .limit(50)
+      .get();
+
+    let advancedCount = 0;
+    for (const order of dueOrders.docs) {
+      try {
+        const advanced = await advanceDemoOrder(order.ref);
+        if (advanced) advancedCount += 1;
+      } catch (error) {
+        logger.error("Could not advance demo order lifecycle", {
+          orderPath: order.ref.path,
+          error,
+        });
+      }
+    }
+
+    logger.info("Demo order lifecycle update completed", {
+      advancedCount,
+      inspectedCount: dueOrders.size,
+    });
+  },
+);
+
+async function advanceDemoOrder(orderRef) {
+  return db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(orderRef);
+    if (!snapshot.exists) return false;
+
+    const order = snapshot.data();
+    const nextLifecycleAt = order.nextLifecycleAt;
+    if (
+      order.lifecycleDemoEnabled !== true ||
+      !(nextLifecycleAt instanceof Timestamp) ||
+      nextLifecycleAt.toMillis() > Date.now()
+    ) {
+      return false;
+    }
+
+    const transition = nextLifecycleTransition(order.status);
+    if (!transition) {
+      transaction.update(orderRef, {
+        lifecycleDemoEnabled: false,
+        nextLifecycleAt: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return false;
+    }
+
+    const isDelivered = transition.status === "delivered";
+    transaction.update(orderRef, {
+      [transition.timestampField]: FieldValue.serverTimestamp(),
+      lifecycleDemoEnabled: !isDelivered,
+      nextLifecycleAt: isDelivered ?
+        FieldValue.delete() :
+        Timestamp.fromMillis(
+          Date.now() + DEMO_LIFECYCLE_DELAY_SECONDS * 1000,
+        ),
+      status: transition.status,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  });
+}
 
 async function resolvePendingOrder(orderRef, requestedOutcome) {
   try {

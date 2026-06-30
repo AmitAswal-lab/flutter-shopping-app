@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 
 import 'package:shopping_app/core/utils/date_time_format.dart';
 import 'package:shopping_app/core/utils/money.dart';
-import 'package:shopping_app/features/cart/domain/models/cart_item.dart';
-import 'package:shopping_app/features/checkout/domain/models/payment.dart';
 import 'package:shopping_app/features/orders/domain/models/order.dart';
 import 'package:shopping_app/features/orders/presentation/controllers/order_history.dart';
+import 'package:shopping_app/features/orders/presentation/screens/order_detail_screen.dart';
+import 'package:shopping_app/features/orders/presentation/widgets/order_status_badge.dart';
 
 class OrderHistoryScreen extends StatelessWidget {
   final VoidCallback? onBrowseProducts;
@@ -71,96 +71,52 @@ class _OrderHistoryCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Card(
-      child: ExpansionTile(
-        leading: CircleAvatar(child: Text(order.totalCount.toString())),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                formatCents(order.totalPriceCents),
-                style: textTheme.titleMedium,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => OrderDetailScreen(
+                orderId: order.id,
+                onResumePayment: onResumePayment,
               ),
             ),
-            _OrderStatusLabel(status: order.status),
-          ],
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              CircleAvatar(child: Text(order.totalCount.toString())),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formatCents(order.totalPriceCents),
+                      style: textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatOrderDate(order.createdAt),
+                      style: textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  OrderStatusBadge(status: order.status),
+                  const SizedBox(height: 8),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
+            ],
+          ),
         ),
-        subtitle: Text(formatOrderDate(order.createdAt)),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        expandedCrossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Divider(),
-          Text(order.customerName, style: textTheme.titleSmall),
-          const SizedBox(height: 4),
-          Text(order.deliveryAddress),
-          const SizedBox(height: 12),
-          for (final item in order.items) _OrderItemRow(item: item),
-          if (order.canResumePayment && onResumePayment != null) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => onResumePayment!(order),
-                icon: const Icon(Icons.payment),
-                label: const Text('Complete payment'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _OrderStatusLabel extends StatelessWidget {
-  const _OrderStatusLabel({required this.status});
-
-  final OrderStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final (background, foreground) = switch (status) {
-      OrderStatus.paid || OrderStatus.confirmed => (
-        colorScheme.primaryContainer,
-        colorScheme.onPrimaryContainer,
-      ),
-      OrderStatus.pendingPayment => (
-        colorScheme.secondaryContainer,
-        colorScheme.onSecondaryContainer,
-      ),
-      _ => (colorScheme.errorContainer, colorScheme.onErrorContainer),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        status.label,
-        style: Theme.of(
-          context,
-        ).textTheme.labelSmall?.copyWith(color: foreground),
-      ),
-    );
-  }
-}
-
-class _OrderItemRow extends StatelessWidget {
-  final CartItem item;
-
-  const _OrderItemRow({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(child: Text('${item.quantity} x ${item.name}')),
-          Text(formatCents(item.lineTotalCents)),
-        ],
       ),
     );
   }

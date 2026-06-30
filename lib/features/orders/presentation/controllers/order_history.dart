@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shopping_app/features/cart/domain/models/cart_item.dart';
 import 'package:shopping_app/features/checkout/domain/models/payment.dart';
 import 'package:shopping_app/features/orders/domain/models/order.dart';
+import 'package:shopping_app/features/orders/domain/models/order_status.dart';
 
 class OrderHistory extends ChangeNotifier {
   final FirebaseFirestore? firestore;
@@ -22,6 +23,13 @@ class OrderHistory extends ChangeNotifier {
   bool get isEmpty => _orders.isEmpty;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  Order? orderById(String orderId) {
+    for (final order in _orders) {
+      if (order.id == orderId) return order;
+    }
+    return null;
+  }
 
   void bindUser(String? userId) {
     if (_userId == userId) return;
@@ -68,6 +76,10 @@ class OrderHistory extends ChangeNotifier {
   Order _orderFromDocument(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     final createdAt = data['createdAt'];
+    final paidAt = data['paidAt'];
+    final processingAt = data['processingAt'];
+    final shippedAt = data['shippedAt'];
+    final deliveredAt = data['deliveredAt'];
     final reservationExpiresAt = data['reservationExpiresAt'];
     final items = data['items'] as List<dynamic>? ?? const [];
 
@@ -78,6 +90,11 @@ class OrderHistory extends ChangeNotifier {
       createdAt: createdAt is Timestamp
           ? createdAt.toDate()
           : DateTime.fromMillisecondsSinceEpoch(0),
+      paidAt: paidAt is Timestamp ? paidAt.toDate() : null,
+      processingAt: processingAt is Timestamp ? processingAt.toDate() : null,
+      shippedAt: shippedAt is Timestamp ? shippedAt.toDate() : null,
+      deliveredAt: deliveredAt is Timestamp ? deliveredAt.toDate() : null,
+      isLifecycleDemoEnabled: data['lifecycleDemoEnabled'] == true,
       items: List.unmodifiable(
         items.map((item) {
           return CartItem.fromJson(Map<String, Object?>.from(item as Map));

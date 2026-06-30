@@ -14,6 +14,7 @@ The app currently includes:
 - Stock-aware quantity controls and checkout validation
 - Transactional checkout through a callable Cloud Function
 - Razorpay Test Mode checkout with stock reservations and order statuses
+- Order details with a backend-driven demo fulfillment timeline
 - Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
 - Product detail pages with quantity selection and add-to-cart behavior
 - Cart, Razorpay checkout, payment verification, and order confirmation flow

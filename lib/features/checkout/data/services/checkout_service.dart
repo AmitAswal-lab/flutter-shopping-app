@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import 'package:shopping_app/features/cart/domain/models/cart_item.dart';
 import 'package:shopping_app/features/checkout/domain/models/payment.dart';
+import 'package:shopping_app/features/orders/domain/models/order_status.dart';
 
 class CheckoutResult {
   const CheckoutResult({
