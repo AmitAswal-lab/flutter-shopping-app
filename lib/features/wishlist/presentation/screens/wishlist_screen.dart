@@ -40,18 +40,28 @@ class _WishlistBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final catalog = context.watch<ProductCatalog>();
+    final wishlist = context.watch<Wishlist>();
 
-    if (catalog.isLoading && catalog.products.isEmpty) {
+    if ((catalog.isLoading && catalog.products.isEmpty) ||
+        (wishlist.isLoading && wishlist.productIds.isEmpty)) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (catalog.errorMessage != null && catalog.products.isEmpty) {
-      return _WishlistCatalogError(message: catalog.errorMessage!);
+    if (wishlist.errorMessage != null && wishlist.productIds.isEmpty) {
+      return _WishlistLoadError(
+        message: wishlist.errorMessage!,
+        onRetry: wishlist.retry,
+      );
     }
 
-    final favoriteProducts = context.watch<Wishlist>().favoritesFrom(
-      catalog.products,
-    );
+    if (catalog.errorMessage != null && catalog.products.isEmpty) {
+      return _WishlistLoadError(
+        message: catalog.errorMessage!,
+        onRetry: catalog.load,
+      );
+    }
+
+    final favoriteProducts = wishlist.favoritesFrom(catalog.products);
 
     if (favoriteProducts.isEmpty) {
       return _EmptyWishlist(onBrowseProducts: onBrowseProducts);
@@ -73,10 +83,11 @@ class _WishlistBody extends StatelessWidget {
   }
 }
 
-class _WishlistCatalogError extends StatelessWidget {
-  const _WishlistCatalogError({required this.message});
+class _WishlistLoadError extends StatelessWidget {
+  const _WishlistLoadError({required this.message, required this.onRetry});
 
   final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +116,7 @@ class _WishlistCatalogError extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: context.read<ProductCatalog>().load,
+              onPressed: onRetry,
               icon: const Icon(Icons.refresh),
               label: const Text('Try again'),
             ),

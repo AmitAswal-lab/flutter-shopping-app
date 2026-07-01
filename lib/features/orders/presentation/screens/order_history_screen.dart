@@ -38,9 +38,19 @@ class _OrderHistoryBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final orders = context.select<OrderHistory, List<Order>>(
-      (history) => history.orders,
-    );
+    final history = context.watch<OrderHistory>();
+    final orders = history.orders;
+
+    if (history.isLoading && orders.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (history.errorMessage != null && orders.isEmpty) {
+      return _OrderHistoryError(
+        message: history.errorMessage!,
+        onRetry: history.retry,
+      );
+    }
 
     if (orders.isEmpty) {
       return _EmptyOrderHistory(onBrowseProducts: onBrowseProducts);
@@ -56,6 +66,46 @@ class _OrderHistoryBody extends StatelessWidget {
           onResumePayment: onResumePayment,
         );
       },
+    );
+  }
+}
+
+class _OrderHistoryError extends StatelessWidget {
+  const _OrderHistoryError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off,
+              size: 56,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load orders',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

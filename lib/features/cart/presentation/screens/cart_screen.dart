@@ -32,6 +32,29 @@ class CartScreen extends StatelessWidget {
       ),
       body: Consumer2<Cart, ProductCatalog>(
         builder: (context, cart, catalog, child) {
+          if ((cart.isLoading && cart.items.isEmpty) ||
+              (catalog.isLoading &&
+                  catalog.products.isEmpty &&
+                  cart.items.isNotEmpty)) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (cart.errorMessage != null && cart.items.isEmpty) {
+            return _CartLoadError(
+              message: cart.errorMessage!,
+              onRetry: cart.retry,
+            );
+          }
+
+          if (catalog.errorMessage != null &&
+              catalog.products.isEmpty &&
+              cart.items.isNotEmpty) {
+            return _CartLoadError(
+              message: catalog.errorMessage!,
+              onRetry: catalog.load,
+            );
+          }
+
           if (cart.items.isEmpty) {
             return _EmptyCart(onBrowseProducts: onBrowseProducts);
           }
@@ -62,6 +85,46 @@ class CartScreen extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _CartLoadError extends StatelessWidget {
+  const _CartLoadError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off,
+              size: 56,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load your cart',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
       ),
     );
   }

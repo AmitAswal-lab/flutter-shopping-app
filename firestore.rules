@@ -6,15 +6,72 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    function validOptionalString(data, field, maximum) {
+      return !data.keys().hasAny([field])
+        || (data[field] is string && data[field].size() <= maximum);
+    }
+
+    function validUserProfile() {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'displayName',
+          'fullName',
+          'phoneNumber',
+          'deliveryAddress',
+          'updatedAt'
+        ])
+        && validOptionalString(data, 'displayName', 100)
+        && validOptionalString(data, 'fullName', 100)
+        && validOptionalString(data, 'phoneNumber', 30)
+        && validOptionalString(data, 'deliveryAddress', 500)
+        && (!data.keys().hasAny(['updatedAt'])
+          || data.updatedAt == request.time);
+    }
+
+    function validCartItem(productId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'productId',
+          'name',
+          'priceCents',
+          'quantity',
+          'updatedAt'
+        ])
+        && data.productId == productId
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 200
+        && data.priceCents is int
+        && data.priceCents >= 0
+        && data.quantity is int
+        && data.quantity > 0
+        && data.quantity <= 99
+        && data.updatedAt == request.time;
+    }
+
+    function validWishlistItem(productId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['productId', 'createdAt'])
+        && data.productId == productId
+        && data.createdAt == request.time;
+    }
+
     match /users/{userId} {
-      allow read, write: if ownsUserData(userId);
+      allow read: if ownsUserData(userId);
+      allow create, update: if ownsUserData(userId) && validUserProfile();
+      allow delete: if false;
 
       match /cartItems/{productId} {
-        allow read, write: if ownsUserData(userId);
+        allow read, delete: if ownsUserData(userId);
+        allow create, update: if ownsUserData(userId)
+          && validCartItem(productId);
       }
 
       match /wishlistItems/{productId} {
-        allow read, write: if ownsUserData(userId);
+        allow read, delete: if ownsUserData(userId);
+        allow create: if ownsUserData(userId)
+          && validWishlistItem(productId);
+        allow update: if false;
       }
 
       match /orders/{orderId} {

@@ -6,12 +6,17 @@
     "node": "22"
   },
   "scripts": {
-    "check": "node --check index.js && node --check order_utils.js && node --check order_lifecycle_utils.js && node --check payment_utils.js && node --check razorpay_utils.js",
-    "test": "node --test"
+    "check": "node --check index.js && node --check checkout_transaction.js && node --check order_utils.js && node --check order_lifecycle_utils.js && node --check payment_utils.js && node --check razorpay_utils.js",
+    "test": "node --test test/order_lifecycle_utils.test.js test/order_utils.test.js test/payment_utils.test.js test/razorpay_utils.test.js",
+    "test:emulator": "cd .. && firebase emulators:exec --only firestore \"node --test functions/test/firestore_rules.test.js && node --test functions/test/checkout_concurrency.test.js\"",
+    "test:rules": "cd .. && firebase emulators:exec --only firestore \"node --test functions/test/firestore_rules.test.js\""
   },
   "dependencies": {
     "firebase-admin": "^13.10.0",
     "firebase-functions": "^7.2.5",
     "razorpay": "^2.9.6"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1"
   }
 }

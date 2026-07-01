@@ -48,7 +48,20 @@ class OrderHistory extends ChangeNotifier {
 
     _isLoading = true;
     notifyListeners();
+    _listenToOrders();
+  }
 
+  void retry() {
+    if (firestore == null || _userId == null || _isLoading) return;
+
+    _subscription?.cancel();
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    _listenToOrders();
+  }
+
+  void _listenToOrders() {
     _subscription = _ordersCollection
         .orderBy('createdAt', descending: true)
         .snapshots()
