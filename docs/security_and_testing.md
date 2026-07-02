@@ -69,9 +69,12 @@ The emulator suite verifies:
 - cart and wishlist data is isolated by Firebase UID;
 - cart quantities and document/product IDs are validated;
 - customers cannot write orders or products;
+- customers cannot directly write reviews or product rating aggregates;
 - unauthenticated users cannot read products;
 - repeated checkout IDs do not reserve stock twice;
 - two concurrent buyers cannot reserve the same final stock unit.
+- review edits do not increase review count;
+- concurrent reviews produce one consistent aggregate rating.
 
 ## Firestore Rule Changes
 
@@ -177,4 +180,3 @@ Before a real public release:
 - load-test checkout and scheduled functions;
 - test network loss and payment interruption on physical devices;
 - configure separate Firebase projects for development and production.
-

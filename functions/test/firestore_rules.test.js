@@ -135,3 +135,22 @@ test("products are authenticated-readable and backend-write-only", async () => {
   await assertFails(getDoc(doc(anonymous, "products/p1")));
   await assertFails(updateDoc(product, {priceCents: 1}));
 });
+
+test("reviews are authenticated-readable and backend-write-only", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "products/p1/reviews/alice"), {
+      comment: "Excellent product.",
+      rating: 5,
+      userId: "alice",
+    });
+  });
+
+  const alice = environment.authenticatedContext("alice").firestore();
+  const anonymous = environment.unauthenticatedContext().firestore();
+  const review = doc(alice, "products/p1/reviews/alice");
+
+  await assertSucceeds(getDoc(review));
+  await assertFails(getDoc(doc(anonymous, "products/p1/reviews/alice")));
+  await assertFails(updateDoc(review, {rating: 1}));
+  await assertFails(deleteDoc(review));
+});

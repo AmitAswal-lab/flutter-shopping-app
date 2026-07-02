@@ -26,15 +26,21 @@ class _UserDataBinderState extends State<UserDataBinder> {
     final auth = context.read<AuthController>();
     if (_auth == auth) return;
 
-    _auth?.removeListener(_bindUserData);
-    _auth = auth..addListener(_bindUserData);
-    _bindUserData();
+    _auth?.removeListener(_scheduleUserDataBinding);
+    _auth = auth..addListener(_scheduleUserDataBinding);
+    _scheduleUserDataBinding();
   }
 
   @override
   void dispose() {
-    _auth?.removeListener(_bindUserData);
+    _auth?.removeListener(_scheduleUserDataBinding);
     super.dispose();
+  }
+
+  void _scheduleUserDataBinding() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _bindUserData();
+    });
   }
 
   void _bindUserData() {

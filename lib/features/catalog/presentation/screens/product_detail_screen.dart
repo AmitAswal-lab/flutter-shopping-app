@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:shopping_app/core/utils/money.dart';
+import 'package:shopping_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:shopping_app/features/cart/domain/models/cart_item.dart';
 import 'package:shopping_app/features/cart/presentation/controllers/cart.dart';
 import 'package:shopping_app/features/catalog/domain/models/product.dart';
 import 'package:shopping_app/features/catalog/presentation/controllers/product_catalog.dart';
 import 'package:shopping_app/features/catalog/presentation/widgets/product_image.dart';
+import 'package:shopping_app/features/reviews/presentation/controllers/product_reviews.dart';
+import 'package:shopping_app/features/reviews/presentation/widgets/product_review_section.dart';
 import 'package:shopping_app/features/wishlist/presentation/widgets/wishlist_icon_button.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -20,6 +23,30 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _quantity = 1;
+  ProductReviews? _reviews;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reviews = context.read<ProductReviews>();
+    if (_reviews == reviews) return;
+
+    _reviews?.unbindProduct(widget.product.id);
+    _reviews = reviews;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _reviews != reviews) return;
+      reviews.bindProduct(
+        productId: widget.product.id,
+        userId: context.read<AuthController>().user?.uid,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _reviews?.unbindProduct(widget.product.id);
+    super.dispose();
+  }
 
   void _decreaseQuantity() {
     if (_quantity == 1) return;
@@ -159,6 +186,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   : 'Stock limit reached',
             ),
           ),
+          const SizedBox(height: 32),
+          ProductReviewSection(product: product),
         ],
       ),
     );

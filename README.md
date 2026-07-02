@@ -15,6 +15,7 @@ The app currently includes:
 - Transactional checkout through a callable Cloud Function
 - Razorpay Test Mode checkout with stock reservations and order statuses
 - Order details with a backend-driven demo fulfillment timeline
+- One review per user/product with secure aggregate rating updates
 - Emulator-tested Firestore rules and concurrent stock reservation
 - Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
 - Product detail pages with quantity selection and add-to-cart behavior

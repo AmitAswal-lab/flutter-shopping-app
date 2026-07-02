@@ -31,6 +31,12 @@ const {
   parseOrderLifecycleRequest,
 } = require("./order_lifecycle_utils");
 const {reserveCheckout} = require("./checkout_transaction");
+const {
+  ReviewInputError,
+  parseReviewDeleteRequest,
+  parseReviewRequest,
+} = require("./review_utils");
+const {removeReview, upsertReview} = require("./review_transaction");
 
 initializeApp();
 
@@ -40,6 +46,65 @@ const DEMO_LIFECYCLE_DELAY_SECONDS = 30;
 const PENDING_PAYMENT = "pendingPayment";
 const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
+
+exports.submitProductReview = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to review a product.",
+      );
+    }
+
+    let review;
+    try {
+      review = parseReviewRequest(request.data);
+    } catch (error) {
+      if (error instanceof ReviewInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    return upsertReview({
+      authEmail: request.auth.token.email,
+      comment: review.comment,
+      db,
+      productId: review.productId,
+      rating: review.rating,
+      userId: request.auth.uid,
+    });
+  },
+);
+
+exports.deleteProductReview = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to delete a review.",
+      );
+    }
+
+    let review;
+    try {
+      review = parseReviewDeleteRequest(request.data);
+    } catch (error) {
+      if (error instanceof ReviewInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    return removeReview({
+      db,
+      productId: review.productId,
+      userId: request.auth.uid,
+    });
+  },
+);
 
 exports.placeOrder = onCall(
   {region: "us-central1", invoker: "public"},

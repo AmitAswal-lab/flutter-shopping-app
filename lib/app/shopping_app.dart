@@ -15,6 +15,8 @@ import 'package:shopping_app/features/checkout/data/services/payment_service.dar
 import 'package:shopping_app/features/orders/data/services/order_lifecycle_service.dart';
 import 'package:shopping_app/features/orders/presentation/controllers/order_history.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
+import 'package:shopping_app/features/reviews/data/services/review_service.dart';
+import 'package:shopping_app/features/reviews/presentation/controllers/product_reviews.dart';
 import 'package:shopping_app/features/settings/presentation/controllers/app_preferences.dart';
 import 'package:shopping_app/features/wishlist/presentation/controllers/wishlist.dart';
 
@@ -56,7 +58,15 @@ class ShoppingApp extends StatelessWidget {
               ? OrderLifecycleService.configured()
               : const OrderLifecycleService.unconfigured(),
         ),
+        Provider(
+          create: (_) => firebaseSetup.isConfigured
+              ? ReviewService.configured()
+              : const ReviewService.unconfigured(),
+        ),
         ChangeNotifierProvider(create: (_) => ProductFilter()),
+        ChangeNotifierProvider(
+          create: (_) => ProductReviews(firestore: firestore),
+        ),
         ChangeNotifierProvider(create: (_) => Wishlist(firestore: firestore)),
         ChangeNotifierProvider(
           create: (_) => OrderHistory(firestore: firestore),
