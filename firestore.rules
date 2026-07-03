@@ -56,6 +56,28 @@ service cloud.firestore {
         && data.createdAt == request.time;
     }
 
+    function validDeviceRegistration() {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'createdAt',
+          'platform',
+          'token',
+          'updatedAt'
+        ])
+        && data.token is string
+        && data.token.size() > 0
+        && data.token.size() <= 4096
+        && data.platform in ['android', 'ios']
+        && data.updatedAt == request.time
+        && (
+          (request.method == 'create' && data.createdAt == request.time)
+          || (
+            request.method == 'update'
+            && data.createdAt == resource.data.createdAt
+          )
+        );
+    }
+
     match /users/{userId} {
       allow read: if ownsUserData(userId);
       allow create, update: if ownsUserData(userId) && validUserProfile();
@@ -72,6 +94,12 @@ service cloud.firestore {
         allow create: if ownsUserData(userId)
           && validWishlistItem(productId);
         allow update: if false;
+      }
+
+      match /deviceRegistrations/{installationId} {
+        allow read, delete: if ownsUserData(userId);
+        allow create, update: if ownsUserData(userId)
+          && validDeviceRegistration();
       }
 
       match /orders/{orderId} {

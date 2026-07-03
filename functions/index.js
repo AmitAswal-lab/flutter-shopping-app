@@ -7,10 +7,12 @@ const {
   Timestamp,
 } = require("firebase-admin/firestore");
 const {initializeApp} = require("firebase-admin/app");
+const {getMessaging} = require("firebase-admin/messaging");
 const {logger} = require("firebase-functions");
 const {defineSecret} = require("firebase-functions/params");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
+const {onDocumentUpdated} = require("firebase-functions/v2/firestore");
 const Razorpay = require("razorpay");
 
 const {
@@ -37,6 +39,10 @@ const {
   parseReviewRequest,
 } = require("./review_utils");
 const {removeReview, upsertReview} = require("./review_transaction");
+const {
+  isInvalidRegistrationError,
+  notificationForStatus,
+} = require("./notification_utils");
 
 initializeApp();
 
@@ -46,6 +52,111 @@ const DEMO_LIFECYCLE_DELAY_SECONDS = 30;
 const PENDING_PAYMENT = "pendingPayment";
 const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
+
+exports.sendOrderStatusNotification = onDocumentUpdated(
+  {
+    document: "users/{userId}/orders/{orderId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after || before.status === after.status) return;
+
+    const {orderId, userId} = event.params;
+    const notification = notificationForStatus(after.status, orderId);
+    if (notification == null) return;
+
+    const eventId = event.id.replaceAll("/", "_");
+    const deliveryRef = db
+      .collection("users")
+      .doc(userId)
+      .collection("notificationDeliveries")
+      .doc(eventId);
+    const claimed = await db.runTransaction(async (transaction) => {
+      const delivery = await transaction.get(deliveryRef);
+      if (delivery.exists) return false;
+
+      transaction.create(deliveryRef, {
+        createdAt: FieldValue.serverTimestamp(),
+        orderId,
+        status: after.status,
+        state: "processing",
+      });
+      return true;
+    });
+    if (!claimed) return;
+
+    try {
+      const registrations = await db
+        .collection("users")
+        .doc(userId)
+        .collection("deviceRegistrations")
+        .get();
+      const tokenDocuments = registrations.docs.filter((document) => {
+        const token = document.data().token;
+        return typeof token === "string" && token.length > 0;
+      });
+
+      if (tokenDocuments.length === 0) {
+        await deliveryRef.update({
+          completedAt: FieldValue.serverTimestamp(),
+          state: "noDevices",
+        });
+        return;
+      }
+
+      let successCount = 0;
+      let failureCount = 0;
+      const invalidRegistrations = [];
+      for (let offset = 0; offset < tokenDocuments.length; offset += 500) {
+        const chunk = tokenDocuments.slice(offset, offset + 500);
+        const response = await getMessaging().sendEachForMulticast({
+          android: {priority: "high"},
+          apns: {payload: {aps: {sound: "default"}}},
+          data: {
+            orderId,
+            status: after.status,
+            type: "orderStatus",
+          },
+          notification,
+          tokens: chunk.map((document) => document.data().token),
+        });
+
+        successCount += response.successCount;
+        failureCount += response.failureCount;
+        response.responses.forEach((result, index) => {
+          if (!result.success && isInvalidRegistrationError(result.error)) {
+            invalidRegistrations.push(chunk[index].ref);
+          }
+        });
+      }
+
+      if (invalidRegistrations.length > 0) {
+        const batch = db.batch();
+        invalidRegistrations.forEach((registration) =>
+          batch.delete(registration),
+        );
+        await batch.commit();
+      }
+
+      await deliveryRef.update({
+        completedAt: FieldValue.serverTimestamp(),
+        failureCount,
+        state: "sent",
+        successCount,
+      });
+    } catch (error) {
+      await deliveryRef.delete();
+      logger.error("Could not send order status notification", {
+        error,
+        orderId,
+        userId,
+      });
+      throw error;
+    }
+  },
+);
 
 exports.submitProductReview = onCall(
   {region: "us-central1", invoker: "public"},
