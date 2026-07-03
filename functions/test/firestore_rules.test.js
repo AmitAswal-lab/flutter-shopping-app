@@ -120,6 +120,44 @@ test("orders are owner-readable but remain backend-write-only", async () => {
   await assertFails(deleteDoc(order));
 });
 
+test("device registrations enforce ownership and immutable creation time", async () => {
+  const alice = environment.authenticatedContext("alice").firestore();
+  const bob = environment.authenticatedContext("bob").firestore();
+  const registration = doc(
+    alice,
+    "users/alice/deviceRegistrations/device_1",
+  );
+
+  await assertSucceeds(setDoc(registration, {
+    createdAt: serverTimestamp(),
+    platform: "android",
+    token: "valid-token",
+    updatedAt: serverTimestamp(),
+  }));
+  await assertSucceeds(updateDoc(registration, {
+    token: "refreshed-token",
+    updatedAt: serverTimestamp(),
+  }));
+  await assertFails(getDoc(doc(
+    bob,
+    "users/alice/deviceRegistrations/device_1",
+  )));
+  await assertFails(updateDoc(registration, {
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }));
+  await assertFails(setDoc(
+    doc(alice, "users/alice/deviceRegistrations/device_2"),
+    {
+      createdAt: serverTimestamp(),
+      platform: "desktop",
+      token: "valid-token",
+      updatedAt: serverTimestamp(),
+    },
+  ));
+  await assertSucceeds(deleteDoc(registration));
+});
+
 test("products are authenticated-readable and backend-write-only", async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), "products/p1"), {

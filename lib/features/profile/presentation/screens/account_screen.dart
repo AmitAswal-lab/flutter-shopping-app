@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:shopping_app/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:shopping_app/features/notifications/data/services/notification_service.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
 import 'package:shopping_app/features/profile/presentation/screens/account_profile_screen.dart';
 import 'package:shopping_app/features/profile/presentation/screens/delivery_profile_screen.dart';
@@ -23,6 +24,11 @@ class AccountScreen extends StatelessWidget {
         ? deliveryProfile.deliveryAddress
         : 'Add delivery details';
 
+    Future<void> signOut() async {
+      await context.read<NotificationService>().unregisterCurrentInstallation();
+      await auth.signOut();
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Account')),
       body: SafeArea(
@@ -32,7 +38,7 @@ class AccountScreen extends StatelessWidget {
             _AccountHeader(
               name: profileName,
               email: user?.email ?? 'No email available',
-              onSignOut: auth.isBusy ? null : auth.signOut,
+              onSignOut: auth.isBusy ? null : signOut,
             ),
             const SizedBox(height: 16),
             _AccountActionTile(

@@ -56,11 +56,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final order = context.select<OrderHistory, Order?>(
       (history) => history.orderById(widget.orderId),
     );
+    final isLoading = context.select<OrderHistory, bool>(
+      (history) => history.isLoading,
+    );
 
     if (order == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Order details')),
-        body: const Center(child: Text('Order is no longer available.')),
+        body: Center(
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : const Text('Order is no longer available.'),
+        ),
       );
     }
 
