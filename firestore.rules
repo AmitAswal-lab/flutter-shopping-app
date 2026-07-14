@@ -6,6 +6,10 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     function validOptionalString(data, field, maximum) {
       return !data.keys().hasAny([field])
         || (data[field] is string && data[field].size() <= maximum);
@@ -106,6 +110,11 @@ service cloud.firestore {
         allow read: if ownsUserData(userId);
         allow create, update, delete: if false;
       }
+    }
+
+    match /admins/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list, create, update, delete: if false;
     }
 
     match /products/{productId} {

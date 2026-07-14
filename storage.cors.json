@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://shopping-app-3caf5.web.app"],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Cache-Control"],
+    "maxAgeSeconds": 3600
+  }
+]

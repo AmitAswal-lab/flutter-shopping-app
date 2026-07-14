@@ -40,6 +40,10 @@ const {
 } = require("./review_utils");
 const {removeReview, upsertReview} = require("./review_transaction");
 const {
+  AdminProductInputError,
+  parseAdminProductRequest,
+} = require("./admin_product_utils");
+const {
   isInvalidRegistrationError,
   notificationForStatus,
 } = require("./notification_utils");
@@ -52,6 +56,54 @@ const DEMO_LIFECYCLE_DELAY_SECONDS = 30;
 const PENDING_PAYMENT = "pendingPayment";
 const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
+
+exports.upsertCatalogProduct = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    await requireCatalogAdmin(request.auth);
+
+    let product;
+    try {
+      product = parseAdminProductRequest(request.data);
+    } catch (error) {
+      if (error instanceof AdminProductInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    const productRef = db.collection("products").doc(product.productId);
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(productRef);
+      const existing = snapshot.data();
+      const imageAsset = existing?.imageAsset ||
+        "assets/products/catalog_placeholder.png";
+
+      transaction.set(productRef, {
+        brand: product.brand,
+        category: product.category,
+        createdAt: existing?.createdAt || FieldValue.serverTimestamp(),
+        createdBy: existing?.createdBy || request.auth.uid,
+        description: product.description,
+        imageAsset,
+        imageStoragePath: product.imageStoragePath,
+        imageUrl: product.imageUrl,
+        isActive: product.isActive,
+        listPriceCents: product.listPriceCents,
+        name: product.name,
+        priceCents: product.priceCents,
+        rating: existing?.rating || 0,
+        reviewCount: existing?.reviewCount || 0,
+        sortOrder: product.sortOrder,
+        stockCount: product.stockCount,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: request.auth.uid,
+      });
+    });
+
+    return {productId: product.productId};
+  },
+);
 
 exports.sendOrderStatusNotification = onDocumentUpdated(
   {
@@ -188,6 +240,23 @@ exports.submitProductReview = onCall(
     });
   },
 );
+
+async function requireCatalogAdmin(auth) {
+  if (!auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "You must be signed in to manage the catalog.",
+    );
+  }
+
+  const admin = await db.collection("admins").doc(auth.uid).get();
+  if (!admin.exists) {
+    throw new HttpsError(
+      "permission-denied",
+      "This account is not a catalog administrator.",
+    );
+  }
+}
 
 exports.deleteProductReview = onCall(
   {region: "us-central1", invoker: "public"},
