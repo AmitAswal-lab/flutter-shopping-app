@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:shopping_app/features/checkout/domain/models/payment.dart';
+import 'package:shopping_app/features/orders/domain/models/order_status.dart';
 import 'package:shopping_app/features/orders/presentation/screens/order_history_screen.dart';
 
 class PaymentResultScreen extends StatelessWidget {

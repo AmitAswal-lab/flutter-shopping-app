@@ -1,6 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 import 'package:shopping_app/features/checkout/domain/models/payment.dart';
+import 'package:shopping_app/features/orders/domain/models/order_status.dart';
 
 class PaymentResult {
   const PaymentResult({

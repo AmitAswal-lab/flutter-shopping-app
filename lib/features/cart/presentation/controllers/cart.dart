@@ -60,7 +60,20 @@ class Cart extends ChangeNotifier {
 
     _isLoading = true;
     notifyListeners();
+    _listenToItems();
+  }
 
+  void retry() {
+    if (!_isFirestoreReady || _isLoading) return;
+
+    _subscription?.cancel();
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    _listenToItems();
+  }
+
+  void _listenToItems() {
     _subscription = _itemsCollection
         .orderBy('name')
         .snapshots()

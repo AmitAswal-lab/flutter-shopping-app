@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:shopping_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:shopping_app/features/cart/presentation/controllers/cart.dart';
+import 'package:shopping_app/features/notifications/data/services/notification_service.dart';
 import 'package:shopping_app/features/orders/presentation/controllers/order_history.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
 import 'package:shopping_app/features/wishlist/presentation/controllers/wishlist.dart';
@@ -26,15 +29,21 @@ class _UserDataBinderState extends State<UserDataBinder> {
     final auth = context.read<AuthController>();
     if (_auth == auth) return;
 
-    _auth?.removeListener(_bindUserData);
-    _auth = auth..addListener(_bindUserData);
-    _bindUserData();
+    _auth?.removeListener(_scheduleUserDataBinding);
+    _auth = auth..addListener(_scheduleUserDataBinding);
+    _scheduleUserDataBinding();
   }
 
   @override
   void dispose() {
-    _auth?.removeListener(_bindUserData);
+    _auth?.removeListener(_scheduleUserDataBinding);
     super.dispose();
+  }
+
+  void _scheduleUserDataBinding() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _bindUserData();
+    });
   }
 
   void _bindUserData() {
@@ -44,6 +53,7 @@ class _UserDataBinderState extends State<UserDataBinder> {
     context.read<Wishlist>().bindUser(userId);
     context.read<OrderHistory>().bindUser(userId);
     context.read<UserProfileController>().bindUser(userId);
+    unawaited(context.read<NotificationService>().bindUser(userId));
   }
 
   @override

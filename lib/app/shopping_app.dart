@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:shopping_app/app/bootstrap/firebase_setup.dart';
+import 'package:shopping_app/app/presentation/app_navigation.dart';
 import 'package:shopping_app/app/presentation/auth_gate.dart';
+import 'package:shopping_app/app/presentation/notification_listener.dart';
 import 'package:shopping_app/app/presentation/user_data_binder.dart';
 import 'package:shopping_app/core/theme/app_theme.dart';
 import 'package:shopping_app/features/auth/presentation/controllers/auth_controller.dart';
@@ -12,8 +14,12 @@ import 'package:shopping_app/features/catalog/presentation/controllers/product_c
 import 'package:shopping_app/features/catalog/presentation/controllers/product_filter.dart';
 import 'package:shopping_app/features/checkout/data/services/checkout_service.dart';
 import 'package:shopping_app/features/checkout/data/services/payment_service.dart';
+import 'package:shopping_app/features/notifications/data/services/notification_service.dart';
+import 'package:shopping_app/features/orders/data/services/order_lifecycle_service.dart';
 import 'package:shopping_app/features/orders/presentation/controllers/order_history.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
+import 'package:shopping_app/features/reviews/data/services/review_service.dart';
+import 'package:shopping_app/features/reviews/presentation/controllers/product_reviews.dart';
 import 'package:shopping_app/features/settings/presentation/controllers/app_preferences.dart';
 import 'package:shopping_app/features/wishlist/presentation/controllers/wishlist.dart';
 
@@ -50,7 +56,26 @@ class ShoppingApp extends StatelessWidget {
               ? PaymentService.configured()
               : const PaymentService.unconfigured(),
         ),
+        Provider(
+          create: (_) => firebaseSetup.isConfigured
+              ? OrderLifecycleService.configured()
+              : const OrderLifecycleService.unconfigured(),
+        ),
+        Provider(
+          create: (_) => firebaseSetup.isConfigured
+              ? ReviewService.configured()
+              : const ReviewService.unconfigured(),
+        ),
+        Provider(
+          create: (_) => firebaseSetup.isConfigured
+              ? NotificationService.configured(firestore: firestore)
+              : NotificationService.unconfigured(),
+          dispose: (_, service) => service.dispose(),
+        ),
         ChangeNotifierProvider(create: (_) => ProductFilter()),
+        ChangeNotifierProvider(
+          create: (_) => ProductReviews(firestore: firestore),
+        ),
         ChangeNotifierProvider(create: (_) => Wishlist(firestore: firestore)),
         ChangeNotifierProvider(
           create: (_) => OrderHistory(firestore: firestore),
@@ -67,13 +92,17 @@ class ShoppingApp extends StatelessWidget {
       child: Consumer<AppPreferences>(
         builder: (context, preferences, child) {
           return UserDataBinder(
-            child: MaterialApp(
-              debugShowCheckedModeBanner: false,
-              title: 'Shopping App',
-              theme: AppTheme.light,
-              darkTheme: AppTheme.dark,
-              themeMode: preferences.themeMode,
-              home: const AuthGate(),
+            child: AppNotificationListener(
+              child: MaterialApp(
+                debugShowCheckedModeBanner: false,
+                navigatorKey: AppNavigation.navigatorKey,
+                scaffoldMessengerKey: AppNavigation.scaffoldMessengerKey,
+                title: 'Shopping App',
+                theme: AppTheme.light,
+                darkTheme: AppTheme.dark,
+                themeMode: preferences.themeMode,
+                home: const AuthGate(),
+              ),
             ),
           );
         },

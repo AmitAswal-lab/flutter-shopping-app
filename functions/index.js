@@ -7,10 +7,12 @@ const {
   Timestamp,
 } = require("firebase-admin/firestore");
 const {initializeApp} = require("firebase-admin/app");
+const {getMessaging} = require("firebase-admin/messaging");
 const {logger} = require("firebase-functions");
 const {defineSecret} = require("firebase-functions/params");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
+const {onDocumentUpdated} = require("firebase-functions/v2/firestore");
 const Razorpay = require("razorpay");
 
 const {
@@ -25,14 +27,269 @@ const {
   parseStoredOrderItems,
 } = require("./payment_utils");
 const {verifyRazorpaySignature} = require("./razorpay_utils");
+const {
+  OrderLifecycleInputError,
+  nextLifecycleTransition,
+  parseOrderLifecycleRequest,
+} = require("./order_lifecycle_utils");
+const {reserveCheckout} = require("./checkout_transaction");
+const {
+  OrderCancellationInputError,
+  parseOrderCancellationRequest,
+} = require("./order_cancellation_utils");
+const {cancelOrder} = require("./order_cancellation_transaction");
+const {
+  ReviewInputError,
+  parseReviewDeleteRequest,
+  parseReviewRequest,
+} = require("./review_utils");
+const {removeReview, upsertReview} = require("./review_transaction");
+const {
+  AdminProductInputError,
+  parseAdminProductRequest,
+} = require("./admin_product_utils");
+const {
+  isInvalidRegistrationError,
+  notificationForStatus,
+} = require("./notification_utils");
 
 initializeApp();
 
 const db = getFirestore();
 const PAYMENT_RESERVATION_MINUTES = 15;
+const DEMO_LIFECYCLE_DELAY_SECONDS = 30;
 const PENDING_PAYMENT = "pendingPayment";
 const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
+
+exports.upsertCatalogProduct = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    await requireCatalogAdmin(request.auth);
+
+    let product;
+    try {
+      product = parseAdminProductRequest(request.data);
+    } catch (error) {
+      if (error instanceof AdminProductInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    const productRef = db.collection("products").doc(product.productId);
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(productRef);
+      const existing = snapshot.data();
+      const imageAsset = existing?.imageAsset ||
+        "assets/products/catalog_placeholder.png";
+
+      transaction.set(productRef, {
+        brand: product.brand,
+        category: product.category,
+        createdAt: existing?.createdAt || FieldValue.serverTimestamp(),
+        createdBy: existing?.createdBy || request.auth.uid,
+        description: product.description,
+        imageAsset,
+        imageStoragePath: product.imageStoragePath,
+        imageUrl: product.imageUrl,
+        isActive: product.isActive,
+        listPriceCents: product.listPriceCents,
+        name: product.name,
+        priceCents: product.priceCents,
+        rating: existing?.rating || 0,
+        reviewCount: existing?.reviewCount || 0,
+        sortOrder: product.sortOrder,
+        stockCount: product.stockCount,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: request.auth.uid,
+      });
+    });
+
+    return {productId: product.productId};
+  },
+);
+
+exports.sendOrderStatusNotification = onDocumentUpdated(
+  {
+    document: "users/{userId}/orders/{orderId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after || before.status === after.status) return;
+
+    const {orderId, userId} = event.params;
+    const notification = notificationForStatus(after.status, orderId);
+    if (notification == null) return;
+
+    const eventId = event.id.replaceAll("/", "_");
+    const deliveryRef = db
+      .collection("users")
+      .doc(userId)
+      .collection("notificationDeliveries")
+      .doc(eventId);
+    const claimed = await db.runTransaction(async (transaction) => {
+      const delivery = await transaction.get(deliveryRef);
+      if (delivery.exists) return false;
+
+      transaction.create(deliveryRef, {
+        createdAt: FieldValue.serverTimestamp(),
+        orderId,
+        status: after.status,
+        state: "processing",
+      });
+      return true;
+    });
+    if (!claimed) return;
+
+    try {
+      const registrations = await db
+        .collection("users")
+        .doc(userId)
+        .collection("deviceRegistrations")
+        .get();
+      const tokenDocuments = registrations.docs.filter((document) => {
+        const token = document.data().token;
+        return typeof token === "string" && token.length > 0;
+      });
+
+      if (tokenDocuments.length === 0) {
+        await deliveryRef.update({
+          completedAt: FieldValue.serverTimestamp(),
+          state: "noDevices",
+        });
+        return;
+      }
+
+      let successCount = 0;
+      let failureCount = 0;
+      const invalidRegistrations = [];
+      for (let offset = 0; offset < tokenDocuments.length; offset += 500) {
+        const chunk = tokenDocuments.slice(offset, offset + 500);
+        const response = await getMessaging().sendEachForMulticast({
+          android: {priority: "high"},
+          apns: {payload: {aps: {sound: "default"}}},
+          data: {
+            orderId,
+            status: after.status,
+            type: "orderStatus",
+          },
+          notification,
+          tokens: chunk.map((document) => document.data().token),
+        });
+
+        successCount += response.successCount;
+        failureCount += response.failureCount;
+        response.responses.forEach((result, index) => {
+          if (!result.success && isInvalidRegistrationError(result.error)) {
+            invalidRegistrations.push(chunk[index].ref);
+          }
+        });
+      }
+
+      if (invalidRegistrations.length > 0) {
+        const batch = db.batch();
+        invalidRegistrations.forEach((registration) =>
+          batch.delete(registration),
+        );
+        await batch.commit();
+      }
+
+      await deliveryRef.update({
+        completedAt: FieldValue.serverTimestamp(),
+        failureCount,
+        state: "sent",
+        successCount,
+      });
+    } catch (error) {
+      await deliveryRef.delete();
+      logger.error("Could not send order status notification", {
+        error,
+        orderId,
+        userId,
+      });
+      throw error;
+    }
+  },
+);
+
+exports.submitProductReview = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to review a product.",
+      );
+    }
+
+    let review;
+    try {
+      review = parseReviewRequest(request.data);
+    } catch (error) {
+      if (error instanceof ReviewInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    return upsertReview({
+      authEmail: request.auth.token.email,
+      comment: review.comment,
+      db,
+      productId: review.productId,
+      rating: review.rating,
+      userId: request.auth.uid,
+    });
+  },
+);
+
+async function requireCatalogAdmin(auth) {
+  if (!auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "You must be signed in to manage the catalog.",
+    );
+  }
+
+  const admin = await db.collection("admins").doc(auth.uid).get();
+  if (!admin.exists) {
+    throw new HttpsError(
+      "permission-denied",
+      "This account is not a catalog administrator.",
+    );
+  }
+}
+
+exports.deleteProductReview = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to delete a review.",
+      );
+    }
+
+    let review;
+    try {
+      review = parseReviewDeleteRequest(request.data);
+    } catch (error) {
+      if (error instanceof ReviewInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    return removeReview({
+      db,
+      productId: review.productId,
+      userId: request.auth.uid,
+    });
+  },
+);
 
 exports.placeOrder = onCall(
   {region: "us-central1", invoker: "public"},
@@ -55,153 +312,13 @@ exports.placeOrder = onCall(
     }
 
     const userId = request.auth.uid;
-    const userRef = db.collection("users").doc(userId);
-    const orderRef = userRef.collection("orders").doc(checkout.checkoutId);
-    const cartRefs = checkout.productIds.map((productId) =>
-      userRef.collection("cartItems").doc(productId),
-    );
-    const productRefs = checkout.productIds.map((productId) =>
-      db.collection("products").doc(productId),
-    );
-
     try {
-      return await db.runTransaction(async (transaction) => {
-        const existingOrder = await transaction.get(orderRef);
-        if (existingOrder.exists) {
-          const data = existingOrder.data();
-          return {
-            orderId: orderRef.id,
-            customerName: data.customerName,
-            totalPriceCents: data.totalPriceCents,
-            paymentMethod: data.paymentMethod,
-            status: data.status,
-            reservationExpiresAtMillis:
-              data.reservationExpiresAt?.toMillis() || null,
-          };
-        }
-
-        const snapshots = await transaction.getAll(
-          userRef,
-          ...cartRefs,
-          ...productRefs,
-        );
-        const userSnapshot = snapshots[0];
-        const cartSnapshots = snapshots.slice(1, 1 + cartRefs.length);
-        const productSnapshots = snapshots.slice(1 + cartRefs.length);
-
-        const orderItems = [];
-        let totalPriceCents = 0;
-
-        for (let index = 0; index < checkout.productIds.length; index += 1) {
-          const productId = checkout.productIds[index];
-          const cartSnapshot = cartSnapshots[index];
-          const productSnapshot = productSnapshots[index];
-
-          if (!cartSnapshot.exists) {
-            throw new HttpsError(
-              "failed-precondition",
-              "Your cart changed. Review it and try again.",
-            );
-          }
-          if (
-            !productSnapshot.exists ||
-            productSnapshot.data().isActive === false
-          ) {
-            throw new HttpsError(
-              "failed-precondition",
-              "A product in your cart is no longer available.",
-              {productId},
-            );
-          }
-
-          const quantity = cartSnapshot.data().quantity;
-          const product = productSnapshot.data();
-          const stockCount = product.stockCount;
-          const priceCents = product.priceCents;
-          const productName =
-            typeof product.name === "string" ? product.name.trim() : "";
-
-          if (!Number.isInteger(quantity) || quantity <= 0) {
-            throw new HttpsError(
-              "failed-precondition",
-              "Your cart contains an invalid quantity.",
-              {productId},
-            );
-          }
-          if (
-            !Number.isInteger(stockCount) ||
-            stockCount < 0 ||
-            !Number.isInteger(priceCents) ||
-            priceCents < 0 ||
-            !productName
-          ) {
-            throw new HttpsError(
-              "internal",
-              "A product in your cart has invalid catalog data.",
-              {productId},
-            );
-          }
-          if (stockCount < quantity) {
-            throw new HttpsError(
-              "failed-precondition",
-              `Only ${stockCount} ${productName} available.`,
-              {productId, availableStock: stockCount},
-            );
-          }
-
-          orderItems.push({
-            productId,
-            name: productName,
-            priceCents,
-            quantity,
-          });
-          totalPriceCents += priceCents * quantity;
-
-          transaction.update(productSnapshot.ref, {
-            stockCount: stockCount - quantity,
-            updatedAt: FieldValue.serverTimestamp(),
-          });
-          transaction.delete(cartSnapshot.ref);
-        }
-
-        const profile = userSnapshot.exists ? userSnapshot.data() : {};
-        const fullName =
-          typeof profile.fullName === "string" ? profile.fullName.trim() : "";
-        const displayName =
-          typeof profile.displayName === "string" ?
-            profile.displayName.trim() :
-            "";
-        const email =
-          typeof request.auth.token.email === "string" ?
-            request.auth.token.email :
-            "";
-        const customerName = fullName || displayName || email || "Shopper";
-        const reservationExpiresAt = Timestamp.fromMillis(
-          Date.now() + PAYMENT_RESERVATION_MINUTES * 60 * 1000,
-        );
-
-        transaction.create(orderRef, {
-          id: orderRef.id,
-          customerName,
-          deliveryAddress: checkout.deliveryAddress,
-          createdAt: FieldValue.serverTimestamp(),
-          items: orderItems,
-          paymentMethod: checkout.paymentMethod,
-          reservationExpiresAt,
-          stockRestored: false,
-          totalPriceCents,
-          status: PENDING_PAYMENT,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-
-        return {
-          orderId: orderRef.id,
-          customerName,
-          paymentMethod: checkout.paymentMethod,
-          reservationExpiresAtMillis: reservationExpiresAt.toMillis(),
-          status: PENDING_PAYMENT,
-          totalPriceCents,
-        };
+      return await reserveCheckout({
+        authEmail: request.auth.token.email,
+        checkout,
+        db,
+        paymentReservationMinutes: PAYMENT_RESERVATION_MINUTES,
+        userId,
       });
     } catch (error) {
       if (error instanceof HttpsError) throw error;
@@ -212,6 +329,54 @@ exports.placeOrder = onCall(
         error,
       });
       throw new HttpsError("internal", "Could not place the order. Try again.");
+    }
+  },
+);
+
+exports.cancelOrder = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to cancel an order.",
+      );
+    }
+
+    let input;
+    try {
+      input = parseOrderCancellationRequest(request.data);
+    } catch (error) {
+      if (error instanceof OrderCancellationInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    const orderRef = db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("orders")
+      .doc(input.orderId);
+
+    try {
+      return await cancelOrder({
+        db,
+        orderRef,
+        userId: request.auth.uid,
+      });
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+
+      logger.error("Order cancellation failed", {
+        error,
+        orderId: input.orderId,
+        userId: request.auth.uid,
+      });
+      throw new HttpsError(
+        "internal",
+        "Could not cancel the order. Try again.",
+      );
     }
   },
 );
@@ -493,6 +658,145 @@ exports.expirePaymentReservations = onSchedule(
     });
   },
 );
+
+exports.startOrderLifecycleDemo = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to simulate an order lifecycle.",
+      );
+    }
+
+    let input;
+    try {
+      input = parseOrderLifecycleRequest(request.data);
+    } catch (error) {
+      if (error instanceof OrderLifecycleInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    const orderRef = db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("orders")
+      .doc(input.orderId);
+
+    return db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(orderRef);
+      if (!snapshot.exists) {
+        throw new HttpsError("not-found", "Order was not found.");
+      }
+
+      const order = snapshot.data();
+      if (!nextLifecycleTransition(order.status)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This order cannot start the delivery simulation.",
+        );
+      }
+
+      const nextLifecycleAt = Timestamp.fromMillis(
+        Date.now() + DEMO_LIFECYCLE_DELAY_SECONDS * 1000,
+      );
+      const updates = {
+        lifecycleDemoEnabled: true,
+        nextLifecycleAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (order.status === "confirmed") {
+        updates.status = "paid";
+        updates.paidAt = order.paidAt || order.createdAt ||
+          FieldValue.serverTimestamp();
+      }
+
+      transaction.update(orderRef, updates);
+      return {
+        nextLifecycleAtMillis: nextLifecycleAt.toMillis(),
+        status: updates.status || order.status,
+      };
+    });
+  },
+);
+
+exports.advanceOrderLifecycleDemos = onSchedule(
+  {
+    region: "us-central1",
+    schedule: "every 1 minutes",
+    timeZone: "UTC",
+  },
+  async () => {
+    const dueOrders = await db
+      .collectionGroup("orders")
+      .where("lifecycleDemoEnabled", "==", true)
+      .where("nextLifecycleAt", "<=", Timestamp.now())
+      .limit(50)
+      .get();
+
+    let advancedCount = 0;
+    for (const order of dueOrders.docs) {
+      try {
+        const advanced = await advanceDemoOrder(order.ref);
+        if (advanced) advancedCount += 1;
+      } catch (error) {
+        logger.error("Could not advance demo order lifecycle", {
+          orderPath: order.ref.path,
+          error,
+        });
+      }
+    }
+
+    logger.info("Demo order lifecycle update completed", {
+      advancedCount,
+      inspectedCount: dueOrders.size,
+    });
+  },
+);
+
+async function advanceDemoOrder(orderRef) {
+  return db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(orderRef);
+    if (!snapshot.exists) return false;
+
+    const order = snapshot.data();
+    const nextLifecycleAt = order.nextLifecycleAt;
+    if (
+      order.lifecycleDemoEnabled !== true ||
+      !(nextLifecycleAt instanceof Timestamp) ||
+      nextLifecycleAt.toMillis() > Date.now()
+    ) {
+      return false;
+    }
+
+    const transition = nextLifecycleTransition(order.status);
+    if (!transition) {
+      transaction.update(orderRef, {
+        lifecycleDemoEnabled: false,
+        nextLifecycleAt: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return false;
+    }
+
+    const isDelivered = transition.status === "delivered";
+    transaction.update(orderRef, {
+      [transition.timestampField]: FieldValue.serverTimestamp(),
+      lifecycleDemoEnabled: !isDelivered,
+      nextLifecycleAt: isDelivered ?
+        FieldValue.delete() :
+        Timestamp.fromMillis(
+          Date.now() + DEMO_LIFECYCLE_DELAY_SECONDS * 1000,
+        ),
+      status: transition.status,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  });
+}
 
 async function resolvePendingOrder(orderRef, requestedOutcome) {
   try {

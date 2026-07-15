@@ -14,6 +14,10 @@ The app currently includes:
 - Stock-aware quantity controls and checkout validation
 - Transactional checkout through a callable Cloud Function
 - Razorpay Test Mode checkout with stock reservations and order statuses
+- Backend-owned order timeline, notifications, and pre-shipment cancellation
+- Separate web catalog administration for products, stock, prices, and images
+- One review per user/product with secure aggregate rating updates
+- Emulator-tested Firestore rules and concurrent stock reservation
 - Auth-gated main app with bottom navigation for Shop, Wishlist, Orders, Cart, and Account
 - Product detail pages with quantity selection and add-to-cart behavior
 - Cart, Razorpay checkout, payment verification, and order confirmation flow
@@ -62,6 +66,7 @@ Current state-management decisions:
 - Shared stock remains read-only in the customer app; authoritative inventory decrement runs in the trusted Cloud Function.
 - Callable checkout uses server-side cart quantities and catalog prices instead of trusting values supplied by the Flutter client.
 - Order status and payment resolution are backend-owned; the Flutter app cannot mark an order paid directly.
+- The `cancelOrder` Cloud Function validates order state and restores inventory exactly once in a transaction.
 - Checkout form controllers are local state because they only belong to the checkout form.
 - `context.read` is used for actions that update state.
 - `context.select` is used when a widget only needs a specific value from Provider.
@@ -101,6 +106,10 @@ Current milestone screenshots:
 | ---------------------------------------------------------------------------------------- |
 | <img width="240" alt="Clean navigation" src="assets/screenshots/clean_navigation.png" /> |
 
+| Order Cancellation                                                                            |
+| --------------------------------------------------------------------------------------------- |
+| <img width="240" alt="Cancelled order with pending refund" src="assets/screenshots/order_cancellation.png" /> |
+
 Suggested location for future screenshots:
 
 ```text
@@ -138,9 +147,11 @@ interview-ready explanation.
 The project uses:
 
 - `main` for meaningful stable updates
-- `dev` for active development
+- `dev` as the integration branch for reviewed features
+- `feature/*` branches for isolated feature development
 
-Current development work is committed directly to `dev`. When `dev` reaches a meaningful upgrade point, it can be merged into `main`.
+Completed feature branches are reviewed and merged into `dev`, then removed.
+When `dev` reaches a meaningful upgrade point, it can be merged into `main`.
 
 ## Running The App
 
@@ -161,6 +172,23 @@ Analyze the project:
 ```bash
 flutter analyze
 ```
+
+Run Flutter tests:
+
+```bash
+flutter test
+```
+
+Run backend tests:
+
+```bash
+cd functions
+npm test
+```
+
+The Firestore security and checkout-concurrency test commands, trust
+boundaries, and remaining production risks are documented in the
+[Security and Testing Report](docs/security_and_testing.md).
 
 ## Firebase Setup
 
