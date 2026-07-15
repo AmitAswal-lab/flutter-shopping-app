@@ -174,6 +174,21 @@ test("products are authenticated-readable and backend-write-only", async () => {
   await assertFails(updateDoc(product, {priceCents: 1}));
 });
 
+test("users can check only their own administrator record", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "admins/alice"), {
+      createdAt: serverTimestamp(),
+    });
+  });
+
+  const alice = environment.authenticatedContext("alice").firestore();
+  const bob = environment.authenticatedContext("bob").firestore();
+
+  await assertSucceeds(getDoc(doc(alice, "admins/alice")));
+  await assertFails(getDoc(doc(bob, "admins/alice")));
+  await assertFails(setDoc(doc(alice, "admins/alice"), {role: "admin"}));
+});
+
 test("reviews are authenticated-readable and backend-write-only", async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), "products/p1/reviews/alice"), {
