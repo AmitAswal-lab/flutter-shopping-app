@@ -26,6 +26,7 @@ class OrderDetailScreen extends StatefulWidget {
 
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _isStartingDemo = false;
+  bool _isCancelling = false;
 
   Future<void> _startDemo(Order order) async {
     setState(() => _isStartingDemo = true);
@@ -48,6 +49,52 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) setState(() => _isStartingDemo = false);
+    }
+  }
+
+  Future<void> _cancelOrder(Order order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cancel order?'),
+          content: const Text(
+            'The items will be returned to stock. A paid order may take time '
+            'to be refunded.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Keep order'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+              ),
+              child: const Text('Cancel order'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isCancelling = true);
+    try {
+      await context.read<OrderLifecycleService>().cancelOrder(order.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Order cancelled.')));
+    } on OrderCancellationFailure catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _isCancelling = false);
     }
   }
 
@@ -107,7 +154,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ],
             const SizedBox(height: 28),
           ] else ...[
-            _OrderStateMessage(status: order.status),
+            _OrderStateMessage(order: order),
             const SizedBox(height: 24),
           ],
           _SectionTitle(title: 'Items (${order.totalCount})'),
@@ -138,6 +185,23 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               onPressed: () => widget.onResumePayment!(order),
               icon: const Icon(Icons.payment),
               label: const Text('Complete payment'),
+            ),
+          ],
+          if (order.status.canCancel) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _isCancelling ? null : () => _cancelOrder(order),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+                side: BorderSide(color: Theme.of(context).colorScheme.error),
+              ),
+              icon: _isCancelling
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.cancel_outlined),
+              label: Text(_isCancelling ? 'Cancelling order' : 'Cancel order'),
             ),
           ],
         ],
@@ -334,18 +398,28 @@ class _TimelineStep extends StatelessWidget {
 }
 
 class _OrderStateMessage extends StatelessWidget {
-  const _OrderStateMessage({required this.status});
+  const _OrderStateMessage({required this.order});
 
-  final OrderStatus status;
+  final Order order;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final message = switch (status) {
+    final isPendingPayment = order.status == OrderStatus.pendingPayment;
+    final backgroundColor = isPendingPayment
+        ? colorScheme.secondaryContainer
+        : colorScheme.errorContainer;
+    final foregroundColor = isPendingPayment
+        ? colorScheme.onSecondaryContainer
+        : colorScheme.onErrorContainer;
+    final message = switch (order.status) {
       OrderStatus.pendingPayment =>
         'Payment is still required before this order can be prepared.',
       OrderStatus.paymentFailed =>
         'Payment was not completed. No inventory remains reserved.',
+      OrderStatus.cancelled
+          when order.refundStatus == OrderRefundStatus.pending =>
+        'This order was cancelled. Your refund is pending.',
       OrderStatus.cancelled => 'This order was cancelled.',
       OrderStatus.expired => 'The payment reservation for this order expired.',
       _ => 'This order is not currently being fulfilled.',
@@ -353,12 +427,13 @@ class _OrderStateMessage extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: status == OrderStatus.pendingPayment
-            ? colorScheme.secondaryContainer
-            : colorScheme.errorContainer,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Padding(padding: const EdgeInsets.all(16), child: Text(message)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(message, style: TextStyle(color: foregroundColor)),
+      ),
     );
   }
 }

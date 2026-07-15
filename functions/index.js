@@ -34,6 +34,11 @@ const {
 } = require("./order_lifecycle_utils");
 const {reserveCheckout} = require("./checkout_transaction");
 const {
+  OrderCancellationInputError,
+  parseOrderCancellationRequest,
+} = require("./order_cancellation_utils");
+const {cancelOrder} = require("./order_cancellation_transaction");
+const {
   ReviewInputError,
   parseReviewDeleteRequest,
   parseReviewRequest,
@@ -324,6 +329,54 @@ exports.placeOrder = onCall(
         error,
       });
       throw new HttpsError("internal", "Could not place the order. Try again.");
+    }
+  },
+);
+
+exports.cancelOrder = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to cancel an order.",
+      );
+    }
+
+    let input;
+    try {
+      input = parseOrderCancellationRequest(request.data);
+    } catch (error) {
+      if (error instanceof OrderCancellationInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    const orderRef = db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("orders")
+      .doc(input.orderId);
+
+    try {
+      return await cancelOrder({
+        db,
+        orderRef,
+        userId: request.auth.uid,
+      });
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+
+      logger.error("Order cancellation failed", {
+        error,
+        orderId: input.orderId,
+        userId: request.auth.uid,
+      });
+      throw new HttpsError(
+        "internal",
+        "Could not cancel the order. Try again.",
+      );
     }
   },
 );

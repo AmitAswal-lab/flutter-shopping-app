@@ -48,6 +48,15 @@ enum OrderStatus {
     };
   }
 
+  bool get canCancel {
+    return switch (this) {
+      OrderStatus.paid ||
+      OrderStatus.confirmed ||
+      OrderStatus.processing => true,
+      _ => false,
+    };
+  }
+
   int get fulfillmentStep {
     return switch (this) {
       OrderStatus.paid || OrderStatus.confirmed => 0,

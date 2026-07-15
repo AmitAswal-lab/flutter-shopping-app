@@ -17,6 +17,10 @@ const ORDER_NOTIFICATIONS = new Map([
     title: "Order delivered",
     body: (orderId) => `Order #${shortOrderId(orderId)} has been delivered.`,
   }],
+  ["cancelled", {
+    title: "Order cancelled",
+    body: (orderId) => `Order #${shortOrderId(orderId)} was cancelled.`,
+  }],
 ]);
 
 function notificationForStatus(status, orderId) {

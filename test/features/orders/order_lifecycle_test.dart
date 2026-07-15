@@ -28,6 +28,26 @@ void main() {
       expect(OrderStatus.cancelled.fulfillmentStep, -1);
     });
 
+    test('allows cancellation only before shipment', () {
+      expect(OrderStatus.paid.canCancel, isTrue);
+      expect(OrderStatus.confirmed.canCancel, isTrue);
+      expect(OrderStatus.processing.canCancel, isTrue);
+      expect(OrderStatus.shipped.canCancel, isFalse);
+      expect(OrderStatus.delivered.canCancel, isFalse);
+      expect(OrderStatus.cancelled.canCancel, isFalse);
+    });
+
+    test('maps stored refund status values', () {
+      expect(
+        OrderRefundStatus.fromWireValue('pending'),
+        OrderRefundStatus.pending,
+      );
+      expect(
+        OrderRefundStatus.fromWireValue('unknown'),
+        OrderRefundStatus.notRequired,
+      );
+    });
+
     test('returns stored timestamps for timeline milestones', () {
       final createdAt = DateTime(2026, 6, 30, 10);
       final paidAt = DateTime(2026, 6, 30, 10, 1);

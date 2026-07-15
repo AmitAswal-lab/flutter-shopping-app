@@ -93,6 +93,7 @@ class OrderHistory extends ChangeNotifier {
     final processingAt = data['processingAt'];
     final shippedAt = data['shippedAt'];
     final deliveredAt = data['deliveredAt'];
+    final cancelledAt = data['cancelledAt'];
     final reservationExpiresAt = data['reservationExpiresAt'];
     final items = data['items'] as List<dynamic>? ?? const [];
 
@@ -107,6 +108,7 @@ class OrderHistory extends ChangeNotifier {
       processingAt: processingAt is Timestamp ? processingAt.toDate() : null,
       shippedAt: shippedAt is Timestamp ? shippedAt.toDate() : null,
       deliveredAt: deliveredAt is Timestamp ? deliveredAt.toDate() : null,
+      cancelledAt: cancelledAt is Timestamp ? cancelledAt.toDate() : null,
       isLifecycleDemoEnabled: data['lifecycleDemoEnabled'] == true,
       items: List.unmodifiable(
         items.map((item) {
@@ -118,6 +120,7 @@ class OrderHistory extends ChangeNotifier {
           ? reservationExpiresAt.toDate()
           : null,
       status: OrderStatus.fromWireValue(data['status']),
+      refundStatus: OrderRefundStatus.fromWireValue(data['refundStatus']),
     );
   }
 
