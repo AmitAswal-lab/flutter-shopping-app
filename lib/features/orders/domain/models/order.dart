@@ -11,11 +11,13 @@ class Order {
   final DateTime? processingAt;
   final DateTime? shippedAt;
   final DateTime? deliveredAt;
+  final DateTime? cancelledAt;
   final bool isLifecycleDemoEnabled;
   final List<CartItem> items;
   final PaymentMethod paymentMethod;
   final DateTime? reservationExpiresAt;
   final OrderStatus status;
+  final OrderRefundStatus refundStatus;
 
   const Order({
     required this.id,
@@ -26,11 +28,13 @@ class Order {
     this.processingAt,
     this.shippedAt,
     this.deliveredAt,
+    this.cancelledAt,
     this.isLifecycleDemoEnabled = false,
     required this.items,
     required this.paymentMethod,
     required this.reservationExpiresAt,
     required this.status,
+    this.refundStatus = OrderRefundStatus.notRequired,
   });
 
   int get totalCount => items.fold(0, (sum, item) => sum + item.quantity);
@@ -52,5 +56,23 @@ class Order {
       OrderStatus.delivered => deliveredAt,
       _ => null,
     };
+  }
+}
+
+enum OrderRefundStatus {
+  notRequired('notRequired'),
+  pending('pending'),
+  processed('processed'),
+  failed('failed');
+
+  const OrderRefundStatus(this.wireValue);
+
+  final String wireValue;
+
+  static OrderRefundStatus fromWireValue(Object? value) {
+    return OrderRefundStatus.values.firstWhere(
+      (status) => status.wireValue == value,
+      orElse: () => OrderRefundStatus.notRequired,
+    );
   }
 }

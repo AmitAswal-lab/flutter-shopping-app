@@ -6,6 +6,12 @@ class OrderLifecycleFailure implements Exception {
   final String message;
 }
 
+class OrderCancellationFailure implements Exception {
+  const OrderCancellationFailure(this.message);
+
+  final String message;
+}
+
 class OrderLifecycleService {
   const OrderLifecycleService._({this.functions});
 
@@ -40,6 +46,28 @@ class OrderLifecycleService {
       throw const OrderLifecycleFailure(
         'Could not start the order simulation.',
       );
+    }
+  }
+
+  Future<void> cancelOrder(String orderId) async {
+    final callableFunctions = functions;
+    if (callableFunctions == null) {
+      throw const OrderCancellationFailure(
+        'Order cancellation is unavailable.',
+      );
+    }
+
+    try {
+      final callable = callableFunctions.httpsCallable('cancelOrder');
+      await callable.call(<String, Object>{'orderId': orderId});
+    } on FirebaseFunctionsException catch (error) {
+      throw OrderCancellationFailure(
+        error.message ?? 'Could not cancel the order.',
+      );
+    } on OrderCancellationFailure {
+      rethrow;
+    } catch (_) {
+      throw const OrderCancellationFailure('Could not cancel the order.');
     }
   }
 }

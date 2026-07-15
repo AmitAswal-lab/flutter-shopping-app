@@ -25,6 +25,10 @@ test("builds notifications only for customer-facing order statuses", () => {
     body: "Order #order_1 has been delivered.",
     title: "Order delivered",
   });
+  assert.deepEqual(notificationForStatus("cancelled", "order_1"), {
+    body: "Order #order_1 was cancelled.",
+    title: "Order cancelled",
+  });
   assert.equal(notificationForStatus("paymentFailed", "order_1"), null);
   assert.equal(notificationForStatus("paid", ""), null);
 });
