@@ -18,6 +18,7 @@ import 'package:shopping_app/features/notifications/data/services/notification_s
 import 'package:shopping_app/features/orders/data/services/order_lifecycle_service.dart';
 import 'package:shopping_app/features/orders/presentation/controllers/order_history.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
+import 'package:shopping_app/features/profile/presentation/controllers/delivery_addresses_controller.dart';
 import 'package:shopping_app/features/reviews/data/services/review_service.dart';
 import 'package:shopping_app/features/reviews/presentation/controllers/product_reviews.dart';
 import 'package:shopping_app/features/settings/presentation/controllers/app_preferences.dart';
@@ -82,6 +83,9 @@ class ShoppingApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => UserProfileController(firestore: firestore),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => DeliveryAddressesController(firestore: firestore),
         ),
         ChangeNotifierProvider(
           create: (_) => firebaseSetup.isConfigured

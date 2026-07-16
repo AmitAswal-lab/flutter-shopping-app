@@ -3,19 +3,22 @@ class UserProfile {
   final String fullName;
   final String phoneNumber;
   final String deliveryAddress;
+  final bool deliveryAddressMigrated;
 
   const UserProfile({
     required this.displayName,
     required this.fullName,
     required this.phoneNumber,
     required this.deliveryAddress,
+    this.deliveryAddressMigrated = false,
   });
 
   const UserProfile.empty()
     : displayName = '',
       fullName = '',
       phoneNumber = '',
-      deliveryAddress = '';
+      deliveryAddress = '',
+      deliveryAddressMigrated = false;
 
   bool get hasDeliveryDetails {
     return fullName.trim().isNotEmpty || deliveryAddress.trim().isNotEmpty;
@@ -27,6 +30,7 @@ class UserProfile {
       'fullName': fullName.trim(),
       'phoneNumber': phoneNumber.trim(),
       'deliveryAddress': deliveryAddress.trim(),
+      'deliveryAddressMigrated': deliveryAddressMigrated,
     };
   }
 
@@ -36,6 +40,8 @@ class UserProfile {
       fullName: json['fullName'] as String? ?? '',
       phoneNumber: json['phoneNumber'] as String? ?? '',
       deliveryAddress: json['deliveryAddress'] as String? ?? '',
+      deliveryAddressMigrated:
+          json['deliveryAddressMigrated'] as bool? ?? false,
     );
   }
 }
