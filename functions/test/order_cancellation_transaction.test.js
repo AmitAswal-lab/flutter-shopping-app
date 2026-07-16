@@ -8,7 +8,10 @@ const {
   initializeTestEnvironment,
 } = require("@firebase/rules-unit-testing");
 
-const {cancelOrder} = require("../order_cancellation_transaction");
+const {
+  claimOrderCancellation,
+  finalizeOrderCancellation,
+} = require("../order_cancellation_transaction");
 
 const PROJECT_ID = "shopping-app-cancellation-test";
 let adminApp;
@@ -30,14 +33,46 @@ test.after(async () => {
   await environment.cleanup();
 });
 
-test("cancelling an order restores stock exactly once", async () => {
+test("stock returns only after a Razorpay refund is accepted", async () => {
   await seedProduct("p1", 3);
   const orderRef = await seedOrder("paid", 2);
 
-  const [first, second] = await Promise.all([
-    cancelOrder({db, orderRef, userId: "alice"}),
-    cancelOrder({db, orderRef, userId: "alice"}),
-  ]);
+  const claim = await claimOrderCancellation({
+    db,
+    orderRef,
+    processingToken: "token_123",
+    userId: "alice",
+  });
+  const claimedOrder = (await orderRef.get()).data();
+
+  assert.equal(claim.state, "claimed");
+  assert.equal(claimedOrder.status, "cancellationPending");
+  assert.equal(claimedOrder.refundStatus, "initiating");
+  assert.equal((await db.doc("products/p1").get()).data().stockCount, 3);
+
+  const refund = {
+    amount: 15998,
+    createdAt: 1_700_000_000,
+    id: "rfnd_123",
+    paymentId: "pay_test_123",
+    speedProcessed: "normal",
+    speedRequested: "normal",
+    status: "pending",
+  };
+  const first = await finalizeOrderCancellation({
+    db,
+    orderRef,
+    processingToken: claim.processingToken,
+    refund,
+    userId: "alice",
+  });
+  const second = await finalizeOrderCancellation({
+    db,
+    orderRef,
+    processingToken: claim.processingToken,
+    refund,
+    userId: "alice",
+  });
   const order = (await orderRef.get()).data();
 
   assert.equal(first.status, "cancelled");
@@ -46,18 +81,34 @@ test("cancelling an order restores stock exactly once", async () => {
   assert.equal(order.status, "cancelled");
   assert.equal(order.stockRestored, true);
   assert.equal(order.refundStatus, "pending");
+  assert.equal(order.refundId, "rfnd_123");
+  assert.equal((await db.doc("refunds/rfnd_123").get()).data().status, "pending");
 });
 
-test("processing orders can be cancelled and stop their demo", async () => {
+test("only one cancellation claim can be active at a time", async () => {
   await seedProduct("p1", 3);
   const orderRef = await seedOrder("processing", 1);
 
-  await cancelOrder({db, orderRef, userId: "alice"});
+  await claimOrderCancellation({
+    db,
+    orderRef,
+    processingToken: "token_first",
+    userId: "alice",
+  });
   const order = (await orderRef.get()).data();
 
   assert.equal(order.lifecycleDemoEnabled, false);
   assert.equal(order.nextLifecycleAt, undefined);
-  assert.equal((await db.doc("products/p1").get()).data().stockCount, 4);
+  assert.equal((await db.doc("products/p1").get()).data().stockCount, 3);
+  await assert.rejects(
+    claimOrderCancellation({
+      db,
+      orderRef,
+      processingToken: "token_second",
+      userId: "alice",
+    }),
+    (error) => error.code === "aborted",
+  );
 });
 
 test("shipped orders cannot be cancelled", async () => {
@@ -65,7 +116,12 @@ test("shipped orders cannot be cancelled", async () => {
   const orderRef = await seedOrder("shipped", 1);
 
   await assert.rejects(
-    cancelOrder({db, orderRef, userId: "alice"}),
+    claimOrderCancellation({
+      db,
+      orderRef,
+      processingToken: "token_123",
+      userId: "alice",
+    }),
     (error) => error.code === "failed-precondition",
   );
   assert.equal((await db.doc("products/p1").get()).data().stockCount, 3);
@@ -94,6 +150,7 @@ async function seedOrder(status, quantity) {
     razorpayPaymentId: "pay_test_123",
     status,
     stockRestored: false,
+    totalPriceCents: quantity * 7999,
   });
   return orderRef;
 }

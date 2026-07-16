@@ -23,6 +23,10 @@ class OrderStatusBadge extends StatelessWidget {
         colorScheme.secondaryContainer,
         colorScheme.onSecondaryContainer,
       ),
+      OrderStatus.cancellationPending => (
+        colorScheme.secondaryContainer,
+        colorScheme.onSecondaryContainer,
+      ),
       _ => (colorScheme.errorContainer, colorScheme.onErrorContainer),
     };
 

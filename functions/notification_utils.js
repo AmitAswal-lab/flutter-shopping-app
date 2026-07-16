@@ -23,8 +23,33 @@ const ORDER_NOTIFICATIONS = new Map([
   }],
 ]);
 
+const REFUND_NOTIFICATIONS = new Map([
+  ["processed", {
+    title: "Refund processed",
+    body: (orderId) =>
+      `The refund for order #${shortOrderId(orderId)} was processed.`,
+  }],
+  ["failed", {
+    title: "Refund needs attention",
+    body: (orderId) =>
+      `The refund for order #${shortOrderId(orderId)} could not be processed.`,
+  }],
+]);
+
 function notificationForStatus(status, orderId) {
   const definition = ORDER_NOTIFICATIONS.get(status);
+  if (!definition || typeof orderId !== "string" || orderId.length === 0) {
+    return null;
+  }
+
+  return {
+    body: definition.body(orderId),
+    title: definition.title,
+  };
+}
+
+function notificationForRefundStatus(status, orderId) {
+  const definition = REFUND_NOTIFICATIONS.get(status);
   if (!definition || typeof orderId !== "string" || orderId.length === 0) {
     return null;
   }
@@ -46,5 +71,6 @@ function shortOrderId(orderId) {
 
 module.exports = {
   isInvalidRegistrationError,
+  notificationForRefundStatus,
   notificationForStatus,
 };
