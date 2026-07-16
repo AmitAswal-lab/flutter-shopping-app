@@ -3,22 +3,19 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const {
-  CheckoutInputError,
-  parseCheckoutRequest,
-} = require("../order_utils");
+const { CheckoutInputError, parseCheckoutRequest } = require("../order_utils");
 
 test("parses and deduplicates checkout product IDs", () => {
   const result = parseCheckoutRequest({
     checkoutId: "checkout_123",
-    deliveryAddress: "123 Test Street",
+    deliveryAddressId: "address_123",
     paymentMethod: "razorpay",
     productIds: ["p1", "p2", "p1"],
   });
 
   assert.deepEqual(result, {
     checkoutId: "checkout_123",
-    deliveryAddress: "123 Test Street",
+    deliveryAddressId: "address_123",
     paymentMethod: "razorpay",
     productIds: ["p1", "p2"],
   });
@@ -29,7 +26,7 @@ test("rejects empty carts", () => {
     () =>
       parseCheckoutRequest({
         checkoutId: "checkout_123",
-        deliveryAddress: "123 Test Street",
+        deliveryAddressId: "address_123",
         paymentMethod: "razorpay",
         productIds: [],
       }),
@@ -42,7 +39,7 @@ test("rejects invalid checkout IDs", () => {
     () =>
       parseCheckoutRequest({
         checkoutId: "bad/id",
-        deliveryAddress: "123 Test Street",
+        deliveryAddressId: "address_123",
         paymentMethod: "razorpay",
         productIds: ["p1"],
       }),
@@ -55,7 +52,7 @@ test("rejects unsupported payment methods", () => {
     () =>
       parseCheckoutRequest({
         checkoutId: "checkout_123",
-        deliveryAddress: "123 Test Street",
+        deliveryAddressId: "address_123",
         paymentMethod: "unknown",
         productIds: ["p1"],
       }),

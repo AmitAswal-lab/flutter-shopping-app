@@ -8,6 +8,7 @@ import 'package:shopping_app/features/cart/presentation/controllers/cart.dart';
 import 'package:shopping_app/features/notifications/data/services/notification_service.dart';
 import 'package:shopping_app/features/orders/presentation/controllers/order_history.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
+import 'package:shopping_app/features/profile/presentation/controllers/delivery_addresses_controller.dart';
 import 'package:shopping_app/features/wishlist/presentation/controllers/wishlist.dart';
 
 class UserDataBinder extends StatefulWidget {
@@ -21,6 +22,7 @@ class UserDataBinder extends StatefulWidget {
 
 class _UserDataBinderState extends State<UserDataBinder> {
   AuthController? _auth;
+  UserProfileController? _profile;
 
   @override
   void didChangeDependencies() {
@@ -31,12 +33,18 @@ class _UserDataBinderState extends State<UserDataBinder> {
 
     _auth?.removeListener(_scheduleUserDataBinding);
     _auth = auth..addListener(_scheduleUserDataBinding);
+    final profile = context.read<UserProfileController>();
+    if (_profile != profile) {
+      _profile?.removeListener(_scheduleLegacyAddressMigration);
+      _profile = profile..addListener(_scheduleLegacyAddressMigration);
+    }
     _scheduleUserDataBinding();
   }
 
   @override
   void dispose() {
     _auth?.removeListener(_scheduleUserDataBinding);
+    _profile?.removeListener(_scheduleLegacyAddressMigration);
     super.dispose();
   }
 
@@ -53,7 +61,17 @@ class _UserDataBinderState extends State<UserDataBinder> {
     context.read<Wishlist>().bindUser(userId);
     context.read<OrderHistory>().bindUser(userId);
     context.read<UserProfileController>().bindUser(userId);
+    context.read<DeliveryAddressesController>().bindUser(userId);
     unawaited(context.read<NotificationService>().bindUser(userId));
+  }
+
+  void _scheduleLegacyAddressMigration() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _profile == null) return;
+      context.read<DeliveryAddressesController>().migrateLegacyAddress(
+        _profile!.profile,
+      );
+    });
   }
 
   @override

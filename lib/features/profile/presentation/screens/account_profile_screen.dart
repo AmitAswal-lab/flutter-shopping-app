@@ -66,6 +66,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
         fullName: userProfile.profile.fullName,
         phoneNumber: userProfile.profile.phoneNumber,
         deliveryAddress: userProfile.profile.deliveryAddress,
+        deliveryAddressMigrated: userProfile.profile.deliveryAddressMigrated,
       ),
     );
     _nameFocusNode.unfocus();

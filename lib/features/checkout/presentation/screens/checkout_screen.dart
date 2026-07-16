@@ -9,7 +9,10 @@ import 'package:shopping_app/features/checkout/data/services/checkout_service.da
 import 'package:shopping_app/features/checkout/domain/models/payment.dart';
 import 'package:shopping_app/features/checkout/presentation/screens/order_success_screen.dart';
 import 'package:shopping_app/features/checkout/presentation/screens/payment_screen.dart';
-import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
+import 'package:shopping_app/features/checkout/presentation/widgets/delivery_address_card.dart';
+import 'package:shopping_app/features/profile/domain/models/delivery_address.dart';
+import 'package:shopping_app/features/profile/presentation/controllers/delivery_addresses_controller.dart';
+import 'package:shopping_app/features/profile/presentation/screens/delivery_profile_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -19,46 +22,16 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _addressController = TextEditingController();
   bool _isPlacingOrder = false;
-  bool _hasPrefilledProfile = false;
   String? _checkoutId;
+  String? _selectedAddressId;
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final userProfile = context.watch<UserProfileController>();
-    final profile = userProfile.profile;
-
-    if (_hasPrefilledProfile ||
-        userProfile.isLoading ||
-        !profile.hasDeliveryDetails) {
-      return;
-    }
-
-    if (_addressController.text.isEmpty &&
-        profile.deliveryAddress.trim().isNotEmpty) {
-      _addressController.text = profile.deliveryAddress;
-    }
-    _hasPrefilledProfile = true;
-  }
-
-  @override
-  void dispose() {
-    _addressController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _placeOrder() async {
-    final form = _formKey.currentState;
-    if (_isPlacingOrder || form == null || !form.validate()) return;
+  Future<void> _placeOrder(DeliveryAddress? deliveryAddress) async {
+    if (_isPlacingOrder || deliveryAddress == null) return;
 
     final cart = context.read<Cart>();
     final catalog = context.read<ProductCatalog>();
     final checkout = context.read<CheckoutService>();
-    final deliveryAddress = _addressController.text.trim();
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
@@ -68,7 +41,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       await catalog.refreshFromServer();
     } catch (_) {
       if (!mounted) return;
-
       setState(() => _isPlacingOrder = false);
       messenger
         ..hideCurrentSnackBar()
@@ -83,7 +55,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final stockIssue = _stockIssue(cart, catalog);
     if (stockIssue != null) {
       if (!mounted) return;
-
       setState(() => _isPlacingOrder = false);
       messenger
         ..hideCurrentSnackBar()
@@ -95,13 +66,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _checkoutId ??= checkout.createCheckoutId();
       final result = await checkout.placeOrder(
         checkoutId: _checkoutId!,
-        deliveryAddress: deliveryAddress,
+        deliveryAddressId: deliveryAddress.id,
         items: cart.items,
         paymentMethod: PaymentMethod.razorpay,
       );
 
       if (!mounted) return;
-
       if (result.status.isSuccessful) {
         navigator.pushAndRemoveUntil(
           MaterialPageRoute(
@@ -126,54 +96,88 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
         ),
       );
-      return;
     } on CheckoutFailure catch (error) {
       if (!mounted) return;
-
       setState(() => _isPlacingOrder = false);
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(error.message)));
-      return;
     } catch (_) {
       if (!mounted) return;
-
       setState(() => _isPlacingOrder = false);
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
           const SnackBar(content: Text('Could not place order. Try again.')),
         );
-      return;
+    }
+  }
+
+  Future<void> _selectDeliveryAddress(
+    BuildContext context,
+    List<DeliveryAddress> addresses,
+    String? selectedAddressId,
+  ) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Choose delivery address')),
+            for (final address in addresses)
+              ListTile(
+                leading: Icon(
+                  address.id == selectedAddressId
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                ),
+                title: Text(address.label),
+                subtitle: Text(address.summary, maxLines: 2),
+                onTap: () => Navigator.of(sheetContext).pop(address.id),
+              ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.manage_accounts_outlined),
+              title: const Text('Manage addresses'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const DeliveryProfileScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _selectedAddressId = selected);
     }
   }
 
   String? _stockIssue(Cart cart, ProductCatalog catalog) {
     for (final item in cart.items) {
       final product = catalog.productById(item.productId);
-      if (product == null) {
-        return '${item.name} is no longer available.';
-      }
-      if (product.stockCount <= 0) {
-        return '${item.name} is out of stock.';
-      }
+      if (product == null) return '${item.name} is no longer available.';
+      if (product.stockCount <= 0) return '${item.name} is out of stock.';
       if (item.quantity > product.stockCount) {
         return 'Only ${product.stockCount} ${item.name} available.';
       }
-    }
-
-    return null;
-  }
-
-  String? _requiredField(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Required';
     }
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final deliveryAddresses = context.watch<DeliveryAddressesController>();
+    final selectedAddress = _selectedAddressId == null
+        ? deliveryAddresses.defaultAddress
+        : _findAddress(deliveryAddresses.addresses, _selectedAddressId!);
+
     return Consumer<Cart>(
       builder: (context, cart, child) {
         return Scaffold(
@@ -188,49 +192,47 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       totalPriceCents: cart.totalPriceCents,
                     ),
                     const SizedBox(height: 24),
-                    Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          TextFormField(
-                            controller: _addressController,
-                            decoration: const InputDecoration(
-                              labelText: 'Delivery address',
+                    DeliveryAddressCard(
+                      address: selectedAddress,
+                      onChange: deliveryAddresses.isLoading
+                          ? null
+                          : () => _selectDeliveryAddress(
+                              context,
+                              deliveryAddresses.addresses,
+                              selectedAddress?.id,
                             ),
-                            maxLines: 3,
-                            textInputAction: TextInputAction.done,
-                            validator: _requiredField,
-                          ),
-                          const SizedBox(height: 24),
-                          Text(
-                            'Payment method',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          const ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.verified_user_outlined),
-                            title: Text('Razorpay Test Mode'),
-                            subtitle: Text('Card, UPI and other test methods'),
-                            trailing: Text('TEST'),
-                          ),
-                          const SizedBox(height: 24),
-                          FilledButton.icon(
-                            onPressed: _isPlacingOrder ? null : _placeOrder,
-                            icon: _isPlacingOrder
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.arrow_forward),
-                            label: const Text('Continue to payment'),
-                          ),
-                        ],
+                      onAdd: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const DeliveryProfileScreen(),
+                        ),
                       ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Payment method',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    const ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.verified_user_outlined),
+                      title: Text('Razorpay Test Mode'),
+                      subtitle: Text('Card, UPI and other test methods'),
+                      trailing: Text('TEST'),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: _isPlacingOrder || selectedAddress == null
+                          ? null
+                          : () => _placeOrder(selectedAddress),
+                      icon: _isPlacingOrder
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.arrow_forward),
+                      label: const Text('Continue to payment'),
                     ),
                   ],
                 ),
@@ -238,13 +240,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       },
     );
   }
+
+  DeliveryAddress? _findAddress(List<DeliveryAddress> addresses, String id) {
+    for (final address in addresses) {
+      if (address.id == id) return address;
+    }
+    return null;
+  }
 }
 
 class _OrderSummary extends StatelessWidget {
+  const _OrderSummary({required this.items, required this.totalPriceCents});
+
   final List<CartItem> items;
   final int totalPriceCents;
-
-  const _OrderSummary({required this.items, required this.totalPriceCents});
 
   @override
   Widget build(BuildContext context) {
@@ -271,18 +280,18 @@ class _OrderSummary extends StatelessWidget {
 }
 
 class _OrderSummaryRow extends StatelessWidget {
-  final CartItem item;
-
   const _OrderSummaryRow({required this.item});
+
+  final CartItem item;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           Expanded(child: Text('${item.quantity} x ${item.name}')),
-          Text(formatCents(item.lineTotalCents)),
+          Text(formatCents(item.priceCents * item.quantity)),
         ],
       ),
     );

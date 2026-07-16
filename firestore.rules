@@ -22,12 +22,15 @@ service cloud.firestore {
           'fullName',
           'phoneNumber',
           'deliveryAddress',
+          'deliveryAddressMigrated',
           'updatedAt'
         ])
         && validOptionalString(data, 'displayName', 100)
         && validOptionalString(data, 'fullName', 100)
         && validOptionalString(data, 'phoneNumber', 30)
         && validOptionalString(data, 'deliveryAddress', 500)
+        && (!data.keys().hasAny(['deliveryAddressMigrated'])
+          || data.deliveryAddressMigrated is bool)
         && (!data.keys().hasAny(['updatedAt'])
           || data.updatedAt == request.time);
     }
@@ -58,6 +61,48 @@ service cloud.firestore {
       return data.keys().hasOnly(['productId', 'createdAt'])
         && data.productId == productId
         && data.createdAt == request.time;
+    }
+
+    function validDeliveryAddress() {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'label',
+          'fullName',
+          'phoneNumber',
+          'address',
+          'isDefault',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasAll([
+          'label',
+          'fullName',
+          'phoneNumber',
+          'address',
+          'isDefault',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.label is string
+        && data.label.size() > 0
+        && data.label.size() <= 50
+        && data.fullName is string
+        && data.fullName.size() > 0
+        && data.fullName.size() <= 100
+        && data.phoneNumber is string
+        && data.phoneNumber.size() <= 30
+        && data.address is string
+        && data.address.size() >= 3
+        && data.address.size() <= 500
+        && data.isDefault is bool
+        && data.updatedAt == request.time
+        && (
+          (request.method == 'create' && data.createdAt == request.time)
+          || (
+            request.method == 'update'
+            && data.createdAt == resource.data.createdAt
+          )
+        );
     }
 
     function validDeviceRegistration() {
@@ -98,6 +143,12 @@ service cloud.firestore {
         allow create: if ownsUserData(userId)
           && validWishlistItem(productId);
         allow update: if false;
+      }
+
+      match /deliveryAddresses/{addressId} {
+        allow read, delete: if ownsUserData(userId);
+        allow create, update: if ownsUserData(userId)
+          && validDeliveryAddress();
       }
 
       match /deviceRegistrations/{installationId} {
