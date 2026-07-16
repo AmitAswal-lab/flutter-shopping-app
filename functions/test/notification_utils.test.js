@@ -5,6 +5,7 @@ const test = require("node:test");
 
 const {
   isInvalidRegistrationError,
+  notificationForRefundStatus,
   notificationForStatus,
 } = require("../notification_utils");
 
@@ -31,6 +32,18 @@ test("builds notifications only for customer-facing order statuses", () => {
   });
   assert.equal(notificationForStatus("paymentFailed", "order_1"), null);
   assert.equal(notificationForStatus("paid", ""), null);
+});
+
+test("builds notifications for completed and failed refunds", () => {
+  assert.deepEqual(notificationForRefundStatus("processed", "order_123456789"), {
+    body: "The refund for order #order_12 was processed.",
+    title: "Refund processed",
+  });
+  assert.deepEqual(notificationForRefundStatus("failed", "order_1"), {
+    body: "The refund for order #order_1 could not be processed.",
+    title: "Refund needs attention",
+  });
+  assert.equal(notificationForRefundStatus("pending", "order_1"), null);
 });
 
 test("recognizes messaging errors that require registration cleanup", () => {

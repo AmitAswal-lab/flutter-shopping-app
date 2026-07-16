@@ -5,6 +5,7 @@ enum OrderStatus {
   shipped('shipped', 'Shipped'),
   delivered('delivered', 'Delivered'),
   paymentFailed('paymentFailed', 'Payment failed'),
+  cancellationPending('cancellationPending', 'Cancelling'),
   cancelled('cancelled', 'Cancelled'),
   expired('expired', 'Payment expired'),
   confirmed('confirmed', 'Confirmed');

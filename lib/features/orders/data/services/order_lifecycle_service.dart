@@ -12,6 +12,12 @@ class OrderCancellationFailure implements Exception {
   final String message;
 }
 
+class OrderRefundRefreshFailure implements Exception {
+  const OrderRefundRefreshFailure(this.message);
+
+  final String message;
+}
+
 class OrderLifecycleService {
   const OrderLifecycleService._({this.functions});
 
@@ -68,6 +74,26 @@ class OrderLifecycleService {
       rethrow;
     } catch (_) {
       throw const OrderCancellationFailure('Could not cancel the order.');
+    }
+  }
+
+  Future<void> refreshRefund(String orderId) async {
+    final callableFunctions = functions;
+    if (callableFunctions == null) {
+      throw const OrderRefundRefreshFailure('Refund refresh is unavailable.');
+    }
+
+    try {
+      final callable = callableFunctions.httpsCallable('refreshOrderRefund');
+      await callable.call(<String, Object>{'orderId': orderId});
+    } on FirebaseFunctionsException catch (error) {
+      throw OrderRefundRefreshFailure(
+        error.message ?? 'Could not refresh the refund.',
+      );
+    } on OrderRefundRefreshFailure {
+      rethrow;
+    } catch (_) {
+      throw const OrderRefundRefreshFailure('Could not refresh the refund.');
     }
   }
 }
