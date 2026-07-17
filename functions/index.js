@@ -10,7 +10,7 @@ const {initializeApp} = require("firebase-admin/app");
 const {getMessaging} = require("firebase-admin/messaging");
 const {logger} = require("firebase-functions");
 const {defineSecret} = require("firebase-functions/params");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, onRequest, HttpsError} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {onDocumentUpdated} = require("firebase-functions/v2/firestore");
 const Razorpay = require("razorpay");
@@ -27,6 +27,13 @@ const {
   parseStoredOrderItems,
 } = require("./payment_utils");
 const {verifyRazorpaySignature} = require("./razorpay_utils");
+const {
+  RazorpayWebhookPayloadError,
+  parseRazorpayWebhookEvent,
+  verifyRazorpayWebhookSignature,
+  webhookEventId,
+} = require("./razorpay_webhook_utils");
+const {reconcileRazorpayWebhook} = require("./webhook_reconciliation");
 const {
   OrderLifecycleInputError,
   nextLifecycleTransition,
@@ -70,6 +77,7 @@ const DEMO_LIFECYCLE_DELAY_SECONDS = 30;
 const PENDING_PAYMENT = "pendingPayment";
 const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
+const razorpayWebhookSecret = defineSecret("RAZORPAY_WEBHOOK_SECRET");
 
 exports.upsertCatalogProduct = onCall(
   {region: "us-central1", invoker: "public"},
@@ -774,6 +782,66 @@ exports.verifyRazorpayPayment = onCall(
       });
       return paymentResult(orderRef.id, {...current, status: "paid"});
     });
+  },
+);
+
+exports.razorpayWebhook = onRequest(
+  {
+    region: "us-central1",
+    invoker: "public",
+    secrets: [razorpayWebhookSecret],
+  },
+  async (request, response) => {
+    if (request.method !== "POST") {
+      response.set("Allow", "POST");
+      response.status(405).json({error: "Method not allowed."});
+      return;
+    }
+
+    const rawBody = request.rawBody;
+    const signature = request.get("x-razorpay-signature");
+    if (!verifyRazorpayWebhookSignature({
+      payload: rawBody,
+      razorpaySignature: signature,
+      secret: razorpayWebhookSecret.value(),
+    })) {
+      logger.warn("Rejected Razorpay webhook with an invalid signature.");
+      response.status(401).json({error: "Invalid webhook signature."});
+      return;
+    }
+
+    let event;
+    try {
+      event = parseRazorpayWebhookEvent(request.body);
+    } catch (error) {
+      if (error instanceof RazorpayWebhookPayloadError) {
+        logger.warn("Ignored malformed Razorpay webhook.", {
+          error: error.message,
+        });
+        response.status(200).json({received: true, ignored: true});
+        return;
+      }
+      throw error;
+    }
+
+    try {
+      const result = await reconcileRazorpayWebhook({
+        db,
+        event,
+        eventId: webhookEventId(rawBody),
+      });
+      logger.info("Razorpay webhook reconciled.", {
+        action: result.action,
+        eventName: event.eventName,
+      });
+      response.status(200).json({received: true});
+    } catch (error) {
+      logger.error("Could not reconcile Razorpay webhook.", {
+        error,
+        eventName: event.eventName,
+      });
+      response.status(500).json({error: "Webhook reconciliation failed."});
+    }
   },
 );
 
