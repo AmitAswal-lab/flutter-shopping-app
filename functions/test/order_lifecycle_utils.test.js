@@ -3,22 +3,32 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
-  OrderLifecycleInputError,
+  OrderFulfillmentInputError,
   nextLifecycleTransition,
-  parseOrderLifecycleRequest,
+  parseOrderFulfillmentRequest,
 } = require("../order_lifecycle_utils");
 
-test("parses a valid lifecycle request", () => {
+test("parses a valid order fulfillment request", () => {
   assert.deepEqual(
-    parseOrderLifecycleRequest({orderId: "order_123"}),
-    {orderId: "order_123"},
+    parseOrderFulfillmentRequest({
+      orderId: "order_123",
+      userId: "customer_123",
+    }),
+    {orderId: "order_123", userId: "customer_123"},
   );
 });
 
-test("rejects an invalid lifecycle order ID", () => {
+test("rejects invalid order fulfillment document IDs", () => {
   assert.throws(
-    () => parseOrderLifecycleRequest({orderId: "../order"}),
-    OrderLifecycleInputError,
+    () => parseOrderFulfillmentRequest({
+      orderId: "../order",
+      userId: "customer_123",
+    }),
+    OrderFulfillmentInputError,
+  );
+  assert.throws(
+    () => parseOrderFulfillmentRequest({orderId: "order_123"}),
+    OrderFulfillmentInputError,
   );
 });
 

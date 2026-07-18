@@ -39,16 +39,6 @@ enum OrderStatus {
     };
   }
 
-  bool get canAdvanceFulfillmentDemo {
-    return switch (this) {
-      OrderStatus.paid ||
-      OrderStatus.confirmed ||
-      OrderStatus.processing ||
-      OrderStatus.shipped => true,
-      _ => false,
-    };
-  }
-
   bool get canCancel {
     return switch (this) {
       OrderStatus.paid ||

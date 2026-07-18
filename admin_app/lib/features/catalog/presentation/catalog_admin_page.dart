@@ -71,136 +71,128 @@ class _CatalogAdminPageState extends State<CatalogAdminPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: StreamBuilder<List<AdminProduct>>(
-          stream: _products(),
-          builder: (context, snapshot) {
-            final products = snapshot.data ?? const <AdminProduct>[];
-            final filtered = _filter(products);
+    return SafeArea(
+      child: StreamBuilder<List<AdminProduct>>(
+        stream: _products(),
+        builder: (context, snapshot) {
+          final products = snapshot.data ?? const <AdminProduct>[];
+          final filtered = _filter(products);
 
-            return CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                    child: _Header(
-                      email: widget.user.email ?? widget.user.uid,
-                      onAdd: () => _openEditor(),
-                      onSignOut: () => FirebaseAuth.instance.signOut(),
-                    ),
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                  child: _Header(
+                    email: widget.user.email ?? widget.user.uid,
+                    onAdd: () => _openEditor(),
                   ),
                 ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 360,
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: const InputDecoration(
-                              labelText: 'Search catalog',
-                              prefixIcon: Icon(Icons.search),
-                            ),
-                            onChanged: (_) => setState(() {}),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 360,
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: const InputDecoration(
+                            labelText: 'Search catalog',
+                            prefixIcon: Icon(Icons.search),
                           ),
+                          onChanged: (_) => setState(() {}),
                         ),
-                        SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(
-                              value: 'active',
-                              label: Text('Active'),
-                              icon: Icon(Icons.storefront_outlined),
-                            ),
-                            ButtonSegment(
-                              value: 'archived',
-                              label: Text('Archived'),
-                              icon: Icon(Icons.archive_outlined),
-                            ),
-                            ButtonSegment(
-                              value: 'all',
-                              label: Text('All'),
-                              icon: Icon(Icons.inventory_2_outlined),
-                            ),
-                          ],
-                          selected: {_visibility},
-                          onSelectionChanged: (values) =>
-                              setState(() => _visibility = values.first),
-                        ),
-                      ],
-                    ),
+                      ),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                            value: 'active',
+                            label: Text('Active'),
+                            icon: Icon(Icons.storefront_outlined),
+                          ),
+                          ButtonSegment(
+                            value: 'archived',
+                            label: Text('Archived'),
+                            icon: Icon(Icons.archive_outlined),
+                          ),
+                          ButtonSegment(
+                            value: 'all',
+                            label: Text('All'),
+                            icon: Icon(Icons.inventory_2_outlined),
+                          ),
+                        ],
+                        selected: {_visibility},
+                        onSelectionChanged: (values) =>
+                            setState(() => _visibility = values.first),
+                      ),
+                    ],
                   ),
                 ),
-                if (snapshot.hasError)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: CenteredMessage(
-                      icon: Icons.cloud_off_outlined,
-                      title: 'Could not load catalog',
-                      body: snapshot.error.toString(),
-                    ),
-                  )
-                else if (snapshot.connectionState == ConnectionState.waiting)
-                  const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: CenteredMessage(
-                      icon: Icons.hourglass_empty,
-                      title: 'Loading catalog',
-                    ),
-                  )
-                else if (filtered.isEmpty)
-                  const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: CenteredMessage(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'No products found',
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.all(24),
-                    sliver: SliverGrid.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 360,
-                            mainAxisExtent: 430,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                          ),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final product = filtered[index];
-                        return ProductAdminCard(
-                          product: product,
-                          onEdit: () => _openEditor(product),
-                        );
-                      },
-                    ),
+              ),
+              if (snapshot.hasError)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: CenteredMessage(
+                    icon: Icons.cloud_off_outlined,
+                    title: 'Could not load catalog',
+                    body: snapshot.error.toString(),
                   ),
-              ],
-            );
-          },
-        ),
+                )
+              else if (snapshot.connectionState == ConnectionState.waiting)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: CenteredMessage(
+                    icon: Icons.hourglass_empty,
+                    title: 'Loading catalog',
+                  ),
+                )
+              else if (filtered.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: CenteredMessage(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'No products found',
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.all(24),
+                  sliver: SliverGrid.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 360,
+                          mainAxisExtent: 430,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                        ),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final product = filtered[index];
+                      return ProductAdminCard(
+                        product: product,
+                        onEdit: () => _openEditor(product),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.email,
-    required this.onAdd,
-    required this.onSignOut,
-  });
+  const _Header({required this.email, required this.onAdd});
 
   final String email;
   final VoidCallback onAdd;
-  final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) {
@@ -210,21 +202,12 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Catalog admin',
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
+              Text('Catalog', style: Theme.of(context).textTheme.headlineLarge),
               const SizedBox(height: 4),
               Text(email, style: Theme.of(context).textTheme.bodyMedium),
             ],
           ),
         ),
-        OutlinedButton.icon(
-          onPressed: onSignOut,
-          icon: const Icon(Icons.logout),
-          label: const Text('Sign out'),
-        ),
-        const SizedBox(width: 12),
         FilledButton.icon(
           onPressed: onAdd,
           icon: const Icon(Icons.add),

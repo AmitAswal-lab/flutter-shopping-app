@@ -10,6 +10,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isCatalogAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
     function validOptionalString(data, field, maximum) {
       return !data.keys().hasAny([field])
         || (data[field] is string && data[field].size() <= maximum);
@@ -158,9 +163,15 @@ service cloud.firestore {
       }
 
       match /orders/{orderId} {
-        allow read: if ownsUserData(userId);
+        allow read: if ownsUserData(userId) || isCatalogAdmin();
         allow create, update, delete: if false;
       }
+    }
+
+    // Collection-group queries need a recursive match in addition to the
+    // concrete user-order path above. This remains read-only and admin-only.
+    match /{path=**}/orders/{orderId} {
+      allow read: if isCatalogAdmin();
     }
 
     match /admins/{userId} {

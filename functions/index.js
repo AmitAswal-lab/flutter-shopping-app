@@ -35,9 +35,9 @@ const {
 } = require("./razorpay_webhook_utils");
 const {reconcileRazorpayWebhook} = require("./webhook_reconciliation");
 const {
-  OrderLifecycleInputError,
+  OrderFulfillmentInputError,
   nextLifecycleTransition,
-  parseOrderLifecycleRequest,
+  parseOrderFulfillmentRequest,
 } = require("./order_lifecycle_utils");
 const {reserveCheckout} = require("./checkout_transaction");
 const {
@@ -73,7 +73,6 @@ initializeApp();
 
 const db = getFirestore();
 const PAYMENT_RESERVATION_MINUTES = 15;
-const DEMO_LIFECYCLE_DELAY_SECONDS = 30;
 const PENDING_PAYMENT = "pendingPayment";
 const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
@@ -82,7 +81,7 @@ const razorpayWebhookSecret = defineSecret("RAZORPAY_WEBHOOK_SECRET");
 exports.upsertCatalogProduct = onCall(
   {region: "us-central1", invoker: "public"},
   async (request) => {
-    await requireCatalogAdmin(request.auth);
+    await requireAdmin(request.auth);
 
     let product;
     try {
@@ -271,7 +270,7 @@ exports.submitProductReview = onCall(
   },
 );
 
-async function requireCatalogAdmin(auth) {
+async function requireAdmin(auth) {
   if (!auth) {
     throw new HttpsError(
       "unauthenticated",
@@ -283,7 +282,7 @@ async function requireCatalogAdmin(auth) {
   if (!admin.exists) {
     throw new HttpsError(
       "permission-denied",
-      "This account is not a catalog administrator.",
+      "This account is not an administrator.",
     );
   }
 }
@@ -915,21 +914,16 @@ exports.syncPendingRazorpayRefunds = onSchedule(
   },
 );
 
-exports.startOrderLifecycleDemo = onCall(
+exports.advanceOrderFulfillment = onCall(
   {region: "us-central1", invoker: "public"},
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to simulate an order lifecycle.",
-      );
-    }
+    await requireAdmin(request.auth);
 
     let input;
     try {
-      input = parseOrderLifecycleRequest(request.data);
+      input = parseOrderFulfillmentRequest(request.data);
     } catch (error) {
-      if (error instanceof OrderLifecycleInputError) {
+      if (error instanceof OrderFulfillmentInputError) {
         throw new HttpsError("invalid-argument", error.message);
       }
       throw error;
@@ -937,7 +931,7 @@ exports.startOrderLifecycleDemo = onCall(
 
     const orderRef = db
       .collection("users")
-      .doc(request.auth.uid)
+      .doc(input.userId)
       .collection("orders")
       .doc(input.orderId);
 
@@ -951,108 +945,29 @@ exports.startOrderLifecycleDemo = onCall(
       if (!nextLifecycleTransition(order.status)) {
         throw new HttpsError(
           "failed-precondition",
-          "This order cannot start the delivery simulation.",
+          "This order cannot advance to the next fulfillment stage.",
         );
       }
 
-      const nextLifecycleAt = Timestamp.fromMillis(
-        Date.now() + DEMO_LIFECYCLE_DELAY_SECONDS * 1000,
-      );
+      const transition = nextLifecycleTransition(order.status);
       const updates = {
-        lifecycleDemoEnabled: true,
-        nextLifecycleAt,
+        [transition.timestampField]: FieldValue.serverTimestamp(),
+        fulfillmentUpdatedBy: request.auth.uid,
+        lifecycleDemoEnabled: FieldValue.delete(),
+        nextLifecycleAt: FieldValue.delete(),
+        status: transition.status,
         updatedAt: FieldValue.serverTimestamp(),
       };
-
-      if (order.status === "confirmed") {
-        updates.status = "paid";
-        updates.paidAt = order.paidAt || order.createdAt ||
-          FieldValue.serverTimestamp();
-      }
 
       transaction.update(orderRef, updates);
       return {
-        nextLifecycleAtMillis: nextLifecycleAt.toMillis(),
-        status: updates.status || order.status,
+        orderId: input.orderId,
+        status: transition.status,
+        userId: input.userId,
       };
     });
   },
 );
-
-exports.advanceOrderLifecycleDemos = onSchedule(
-  {
-    region: "us-central1",
-    schedule: "every 1 minutes",
-    timeZone: "UTC",
-  },
-  async () => {
-    const dueOrders = await db
-      .collectionGroup("orders")
-      .where("lifecycleDemoEnabled", "==", true)
-      .where("nextLifecycleAt", "<=", Timestamp.now())
-      .limit(50)
-      .get();
-
-    let advancedCount = 0;
-    for (const order of dueOrders.docs) {
-      try {
-        const advanced = await advanceDemoOrder(order.ref);
-        if (advanced) advancedCount += 1;
-      } catch (error) {
-        logger.error("Could not advance demo order lifecycle", {
-          orderPath: order.ref.path,
-          error,
-        });
-      }
-    }
-
-    logger.info("Demo order lifecycle update completed", {
-      advancedCount,
-      inspectedCount: dueOrders.size,
-    });
-  },
-);
-
-async function advanceDemoOrder(orderRef) {
-  return db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(orderRef);
-    if (!snapshot.exists) return false;
-
-    const order = snapshot.data();
-    const nextLifecycleAt = order.nextLifecycleAt;
-    if (
-      order.lifecycleDemoEnabled !== true ||
-      !(nextLifecycleAt instanceof Timestamp) ||
-      nextLifecycleAt.toMillis() > Date.now()
-    ) {
-      return false;
-    }
-
-    const transition = nextLifecycleTransition(order.status);
-    if (!transition) {
-      transaction.update(orderRef, {
-        lifecycleDemoEnabled: false,
-        nextLifecycleAt: FieldValue.delete(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      return false;
-    }
-
-    const isDelivered = transition.status === "delivered";
-    transaction.update(orderRef, {
-      [transition.timestampField]: FieldValue.serverTimestamp(),
-      lifecycleDemoEnabled: !isDelivered,
-      nextLifecycleAt: isDelivered ?
-        FieldValue.delete() :
-        Timestamp.fromMillis(
-          Date.now() + DEMO_LIFECYCLE_DELAY_SECONDS * 1000,
-        ),
-      status: transition.status,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    return true;
-  });
-}
 
 async function resolvePendingOrder(orderRef, requestedOutcome) {
   try {
