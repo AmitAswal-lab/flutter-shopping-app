@@ -1,10 +1,7 @@
 "use strict";
 
-const {
-  FieldValue,
-  Timestamp,
-} = require("firebase-admin/firestore");
-const {HttpsError} = require("firebase-functions/v2/https");
+const { FieldValue, Timestamp } = require("firebase-admin/firestore");
+const { HttpsError } = require("firebase-functions/v2/https");
 
 const PENDING_PAYMENT = "pendingPayment";
 
@@ -17,6 +14,9 @@ async function reserveCheckout({
 }) {
   const userRef = db.collection("users").doc(userId);
   const orderRef = userRef.collection("orders").doc(checkout.checkoutId);
+  const deliveryAddressRef = userRef
+    .collection("deliveryAddresses")
+    .doc(checkout.deliveryAddressId);
   const cartRefs = checkout.productIds.map((productId) =>
     userRef.collection("cartItems").doc(productId),
   );
@@ -41,12 +41,22 @@ async function reserveCheckout({
 
     const snapshots = await transaction.getAll(
       userRef,
+      deliveryAddressRef,
       ...cartRefs,
       ...productRefs,
     );
     const userSnapshot = snapshots[0];
-    const cartSnapshots = snapshots.slice(1, 1 + cartRefs.length);
-    const productSnapshots = snapshots.slice(1 + cartRefs.length);
+    const deliveryAddressSnapshot = snapshots[1];
+    const cartSnapshots = snapshots.slice(2, 2 + cartRefs.length);
+    const productSnapshots = snapshots.slice(2 + cartRefs.length);
+
+    if (!deliveryAddressSnapshot.exists) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Choose a saved delivery address before checkout.",
+      );
+    }
+    const delivery = parseDeliveryAddress(deliveryAddressSnapshot.data());
 
     const orderItems = [];
     let totalPriceCents = 0;
@@ -69,7 +79,7 @@ async function reserveCheckout({
         throw new HttpsError(
           "failed-precondition",
           "A product in your cart is no longer available.",
-          {productId},
+          { productId },
         );
       }
 
@@ -84,7 +94,7 @@ async function reserveCheckout({
         throw new HttpsError(
           "failed-precondition",
           "Your cart contains an invalid quantity.",
-          {productId},
+          { productId },
         );
       }
       if (
@@ -97,14 +107,14 @@ async function reserveCheckout({
         throw new HttpsError(
           "internal",
           "A product in your cart has invalid catalog data.",
-          {productId},
+          { productId },
         );
       }
       if (stockCount < quantity) {
         throw new HttpsError(
           "failed-precondition",
           `Only ${stockCount} ${productName} available.`,
-          {productId, availableStock: stockCount},
+          { productId, availableStock: stockCount },
         );
       }
 
@@ -127,9 +137,7 @@ async function reserveCheckout({
     const fullName =
       typeof profile.fullName === "string" ? profile.fullName.trim() : "";
     const displayName =
-      typeof profile.displayName === "string" ?
-        profile.displayName.trim() :
-        "";
+      typeof profile.displayName === "string" ? profile.displayName.trim() : "";
     const email = typeof authEmail === "string" ? authEmail : "";
     const customerName = fullName || displayName || email || "Shopper";
     const reservationExpiresAt = Timestamp.fromMillis(
@@ -139,7 +147,10 @@ async function reserveCheckout({
     transaction.create(orderRef, {
       id: orderRef.id,
       customerName,
-      deliveryAddress: checkout.deliveryAddress,
+      deliveryAddress: delivery.formattedAddress,
+      deliveryAddressId: deliveryAddressRef.id,
+      deliveryRecipient: delivery.fullName,
+      deliveryPhoneNumber: delivery.phoneNumber,
       createdAt: FieldValue.serverTimestamp(),
       items: orderItems,
       paymentMethod: checkout.paymentMethod,
@@ -161,4 +172,39 @@ async function reserveCheckout({
   });
 }
 
-module.exports = {reserveCheckout};
+function parseDeliveryAddress(data) {
+  const address = typeof data.address === "string" ? data.address.trim() : "";
+  const fullName =
+    typeof data.fullName === "string" ? data.fullName.trim() : "";
+  const phoneNumber =
+    typeof data.phoneNumber === "string" ? data.phoneNumber.trim() : "";
+
+  if (
+    !fullName ||
+    fullName.length > 100 ||
+    address.length < 3 ||
+    address.length > 500
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Your saved delivery address is incomplete. Update it before checkout.",
+    );
+  }
+  if (phoneNumber.length > 30) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Your saved phone number is invalid. Update the address before checkout.",
+    );
+  }
+
+  return {
+    address,
+    formattedAddress: [fullName, address, phoneNumber]
+      .filter(Boolean)
+      .join("\n"),
+    fullName,
+    phoneNumber,
+  };
+}
+
+module.exports = { reserveCheckout };

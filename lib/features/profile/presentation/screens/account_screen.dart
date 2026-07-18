@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:shopping_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:shopping_app/features/notifications/data/services/notification_service.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
+import 'package:shopping_app/features/profile/presentation/controllers/delivery_addresses_controller.dart';
 import 'package:shopping_app/features/profile/presentation/screens/account_profile_screen.dart';
 import 'package:shopping_app/features/profile/presentation/screens/delivery_profile_screen.dart';
 import 'package:shopping_app/features/settings/presentation/screens/settings_screen.dart';
@@ -15,14 +16,17 @@ class AccountScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final deliveryProfile = context.watch<UserProfileController>().profile;
+    final deliveryAddresses = context.watch<DeliveryAddressesController>();
     final user = auth.user;
     final displayName = user?.displayName?.trim();
     final profileName = displayName == null || displayName.isEmpty
         ? 'Shopper'
         : displayName;
-    final deliverySummary = deliveryProfile.hasDeliveryDetails
-        ? deliveryProfile.deliveryAddress
-        : 'Add delivery details';
+    final deliverySummary =
+        deliveryAddresses.defaultAddress?.summary ??
+        (deliveryProfile.hasDeliveryDetails
+            ? deliveryProfile.deliveryAddress
+            : 'Add delivery address');
 
     Future<void> signOut() async {
       await context.read<NotificationService>().unregisterCurrentInstallation();

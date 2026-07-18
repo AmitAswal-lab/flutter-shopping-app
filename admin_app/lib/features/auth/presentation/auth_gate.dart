@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../common/loading_scaffold.dart';
-import '../../catalog/presentation/catalog_admin_page.dart';
+import '../../shell/presentation/admin_shell.dart';
 import 'access_message_page.dart';
 import 'sign_in_page.dart';
 
@@ -62,7 +62,7 @@ class AdminAccessGate extends StatelessWidget {
           );
         }
 
-        return CatalogAdminPage(user: user);
+        return AdminShell(user: user);
       },
     );
   }

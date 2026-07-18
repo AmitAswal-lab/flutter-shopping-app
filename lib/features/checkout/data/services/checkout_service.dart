@@ -54,7 +54,7 @@ class CheckoutService {
 
   Future<CheckoutResult> placeOrder({
     required String checkoutId,
-    required String deliveryAddress,
+    required String deliveryAddressId,
     required List<CartItem> items,
     required PaymentMethod paymentMethod,
   }) async {
@@ -67,7 +67,7 @@ class CheckoutService {
       final callable = callableFunctions.httpsCallable('placeOrder');
       final response = await callable.call(<String, Object>{
         'checkoutId': checkoutId,
-        'deliveryAddress': deliveryAddress,
+        'deliveryAddressId': deliveryAddressId,
         'paymentMethod': paymentMethod.wireValue,
         'productIds': items.map((item) => item.productId).toList(),
       });

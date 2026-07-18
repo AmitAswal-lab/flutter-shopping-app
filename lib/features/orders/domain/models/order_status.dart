@@ -5,6 +5,7 @@ enum OrderStatus {
   shipped('shipped', 'Shipped'),
   delivered('delivered', 'Delivered'),
   paymentFailed('paymentFailed', 'Payment failed'),
+  cancellationPending('cancellationPending', 'Cancelling'),
   cancelled('cancelled', 'Cancelled'),
   expired('expired', 'Payment expired'),
   confirmed('confirmed', 'Confirmed');
@@ -34,16 +35,6 @@ enum OrderStatus {
       OrderStatus.shipped ||
       OrderStatus.delivered ||
       OrderStatus.confirmed => true,
-      _ => false,
-    };
-  }
-
-  bool get canAdvanceFulfillmentDemo {
-    return switch (this) {
-      OrderStatus.paid ||
-      OrderStatus.confirmed ||
-      OrderStatus.processing ||
-      OrderStatus.shipped => true,
       _ => false,
     };
   }

@@ -7,27 +7,30 @@ const LIFECYCLE_TRANSITIONS = new Map([
   ["shipped", {status: "delivered", timestampField: "deliveredAt"}],
 ]);
 
-class OrderLifecycleInputError extends Error {}
+class OrderFulfillmentInputError extends Error {}
 
-function parseOrderLifecycleRequest(data) {
+function parseOrderFulfillmentRequest(data) {
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
-    throw new OrderLifecycleInputError("Order data is required.");
+    throw new OrderFulfillmentInputError("Order data is required.");
   }
 
-  if (typeof data.orderId !== "string") {
-    throw new OrderLifecycleInputError("Order ID must be a string.");
+  const orderId = parseDocumentId(data.orderId, "Order ID");
+  const userId = parseDocumentId(data.userId, "User ID");
+
+  return {orderId, userId};
+}
+
+function parseDocumentId(value, label) {
+  if (typeof value !== "string") {
+    throw new OrderFulfillmentInputError(`${label} must be a string.`);
   }
 
-  const orderId = data.orderId.trim();
-  if (
-    orderId.length < 8 ||
-    orderId.length > 128 ||
-    !/^[A-Za-z0-9_-]+$/.test(orderId)
-  ) {
-    throw new OrderLifecycleInputError("Order ID is invalid.");
+  const id = value.trim();
+  if (id.length < 3 || id.length > 128 || !/^[A-Za-z0-9_-]+$/.test(id)) {
+    throw new OrderFulfillmentInputError(`${label} is invalid.`);
   }
 
-  return {orderId};
+  return id;
 }
 
 function nextLifecycleTransition(status) {
@@ -35,7 +38,7 @@ function nextLifecycleTransition(status) {
 }
 
 module.exports = {
-  OrderLifecycleInputError,
+  OrderFulfillmentInputError,
   nextLifecycleTransition,
-  parseOrderLifecycleRequest,
+  parseOrderFulfillmentRequest,
 };

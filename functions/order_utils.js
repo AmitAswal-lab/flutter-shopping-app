@@ -20,12 +20,15 @@ function parseCheckoutRequest(data) {
     throw new CheckoutInputError("Checkout ID is invalid.");
   }
 
-  const deliveryAddress = requireTrimmedString(
-    data.deliveryAddress,
-    "Delivery address",
-    3,
-    500,
+  const deliveryAddressId = requireTrimmedString(
+    data.deliveryAddressId,
+    "Delivery address ID",
+    1,
+    128,
   );
+  if (!/^[A-Za-z0-9_-]+$/.test(deliveryAddressId)) {
+    throw new CheckoutInputError("Delivery address ID is invalid.");
+  }
   const paymentMethod = requireTrimmedString(
     data.paymentMethod,
     "Payment method",
@@ -48,7 +51,7 @@ function parseCheckoutRequest(data) {
 
   const productIds = [...new Set(data.productIds.map(parseProductId))];
 
-  return {checkoutId, deliveryAddress, paymentMethod, productIds};
+  return { checkoutId, deliveryAddressId, paymentMethod, productIds };
 }
 
 function parseProductId(value) {

@@ -94,6 +94,8 @@ class OrderHistory extends ChangeNotifier {
     final shippedAt = data['shippedAt'];
     final deliveredAt = data['deliveredAt'];
     final cancelledAt = data['cancelledAt'];
+    final refundCreatedAt = data['refundCreatedAt'];
+    final refundProcessedAt = data['refundProcessedAt'];
     final reservationExpiresAt = data['reservationExpiresAt'];
     final items = data['items'] as List<dynamic>? ?? const [];
 
@@ -109,7 +111,12 @@ class OrderHistory extends ChangeNotifier {
       shippedAt: shippedAt is Timestamp ? shippedAt.toDate() : null,
       deliveredAt: deliveredAt is Timestamp ? deliveredAt.toDate() : null,
       cancelledAt: cancelledAt is Timestamp ? cancelledAt.toDate() : null,
-      isLifecycleDemoEnabled: data['lifecycleDemoEnabled'] == true,
+      refundCreatedAt: refundCreatedAt is Timestamp
+          ? refundCreatedAt.toDate()
+          : null,
+      refundProcessedAt: refundProcessedAt is Timestamp
+          ? refundProcessedAt.toDate()
+          : null,
       items: List.unmodifiable(
         items.map((item) {
           return CartItem.fromJson(Map<String, Object?>.from(item as Map));
@@ -121,6 +128,8 @@ class OrderHistory extends ChangeNotifier {
           : null,
       status: OrderStatus.fromWireValue(data['status']),
       refundStatus: OrderRefundStatus.fromWireValue(data['refundStatus']),
+      refundId: data['refundId'] as String?,
+      refundAmountCents: data['refundAmountCents'] as int?,
     );
   }
 

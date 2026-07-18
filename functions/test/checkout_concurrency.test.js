@@ -2,12 +2,10 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const {deleteApp, initializeApp} = require("firebase-admin/app");
-const {getFirestore} = require("firebase-admin/firestore");
-const {
-  initializeTestEnvironment,
-} = require("@firebase/rules-unit-testing");
-const {reserveCheckout} = require("../checkout_transaction");
+const { deleteApp, initializeApp } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const { initializeTestEnvironment } = require("@firebase/rules-unit-testing");
+const { reserveCheckout } = require("../checkout_transaction");
 
 const PROJECT_ID = "shopping-app-checkout-test";
 let adminApp;
@@ -15,8 +13,8 @@ let db;
 let environment;
 
 test.before(async () => {
-  environment = await initializeTestEnvironment({projectId: PROJECT_ID});
-  adminApp = initializeApp({projectId: PROJECT_ID}, "checkout-test");
+  environment = await initializeTestEnvironment({ projectId: PROJECT_ID });
+  adminApp = initializeApp({ projectId: PROJECT_ID }, "checkout-test");
   db = getFirestore(adminApp);
 });
 
@@ -51,10 +49,7 @@ test("repeated checkout IDs reserve stock only once", async () => {
 
   assert.equal(first.orderId, second.orderId);
   assert.equal((await db.doc("products/p1").get()).data().stockCount, 1);
-  assert.equal(
-    (await db.collection("users/alice/orders").get()).size,
-    1,
-  );
+  assert.equal((await db.collection("users/alice/orders").get()).size, 1);
 });
 
 test("concurrent buyers cannot reserve the same final stock unit", async () => {
@@ -95,7 +90,7 @@ test("concurrent buyers cannot reserve the same final stock unit", async () => {
 function checkoutInput(checkoutId, productId) {
   return {
     checkoutId,
-    deliveryAddress: "123 Test Street",
+    deliveryAddressId: "default",
     paymentMethod: "razorpay",
     productIds: [productId],
   };
@@ -103,7 +98,14 @@ function checkoutInput(checkoutId, productId) {
 
 async function seedUserCart(userId, productId, quantity) {
   await Promise.all([
-    db.doc(`users/${userId}`).set({displayName: userId}),
+    db.doc(`users/${userId}`).set({ displayName: userId }),
+    db.doc(`users/${userId}/deliveryAddresses/default`).set({
+      address: "123 Test Street",
+      fullName: userId,
+      isDefault: true,
+      label: "Home",
+      phoneNumber: "1234567890",
+    }),
     db.doc(`users/${userId}/cartItems/${productId}`).set({
       name: "Headphones",
       priceCents: 7999,

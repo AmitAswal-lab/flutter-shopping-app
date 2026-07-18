@@ -25,32 +25,8 @@ class OrderDetailScreen extends StatefulWidget {
 }
 
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
-  bool _isStartingDemo = false;
   bool _isCancelling = false;
-
-  Future<void> _startDemo(Order order) async {
-    setState(() => _isStartingDemo = true);
-
-    try {
-      await context.read<OrderLifecycleService>().startDemo(order.id);
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Delivery simulation started. Status will update automatically.',
-          ),
-        ),
-      );
-    } on OrderLifecycleFailure catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
-    } finally {
-      if (mounted) setState(() => _isStartingDemo = false);
-    }
-  }
+  bool _isRefreshingRefund = false;
 
   Future<void> _cancelOrder(Order order) async {
     final confirmed = await showDialog<bool>(
@@ -59,8 +35,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         return AlertDialog(
           title: const Text('Cancel order?'),
           content: const Text(
-            'The items will be returned to stock. A paid order may take time '
-            'to be refunded.',
+            'We will request a refund from Razorpay first. Once accepted, '
+            'the items will be returned to stock.',
           ),
           actions: [
             TextButton(
@@ -85,9 +61,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     try {
       await context.read<OrderLifecycleService>().cancelOrder(order.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Order cancelled.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cancellation requested. Refund status will update.'),
+        ),
+      );
     } on OrderCancellationFailure catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -95,6 +73,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) setState(() => _isCancelling = false);
+    }
+  }
+
+  Future<void> _refreshRefund(Order order) async {
+    setState(() => _isRefreshingRefund = true);
+    try {
+      await context.read<OrderLifecycleService>().refreshRefund(order.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Refund status refreshed.')));
+    } on OrderRefundRefreshFailure catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _isRefreshingRefund = false);
     }
   }
 
@@ -129,29 +125,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             _SectionTitle(title: 'Delivery progress'),
             const SizedBox(height: 12),
             _OrderTimeline(order: order),
-            if (order.status.canAdvanceFulfillmentDemo) ...[
-              const SizedBox(height: 20),
-              if (order.isLifecycleDemoEnabled)
-                const _DemoRunningIndicator()
-              else
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _isStartingDemo ? null : () => _startDemo(order),
-                    icon: _isStartingDemo
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.play_arrow),
-                    label: Text(
-                      _isStartingDemo
-                          ? 'Starting simulation'
-                          : 'Simulate delivery progress',
-                    ),
-                  ),
-                ),
-            ],
             const SizedBox(height: 28),
           ] else ...[
             _OrderStateMessage(order: order),
@@ -179,6 +152,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             'Order ${_shortOrderId(order.id)}',
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          if (order.refundStatus != OrderRefundStatus.notRequired) ...[
+            const SizedBox(height: 24),
+            _RefundDetails(
+              isRefreshing: _isRefreshingRefund,
+              onRefresh: order.refundStatus == OrderRefundStatus.pending
+                  ? () => _refreshRefund(order)
+                  : null,
+              order: order,
+            ),
+          ],
           if (order.canResumePayment && widget.onResumePayment != null) ...[
             const SizedBox(height: 28),
             FilledButton.icon(
@@ -206,25 +189,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _DemoRunningIndicator extends StatelessWidget {
-  const _DemoRunningIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const LinearProgressIndicator(),
-        const SizedBox(height: 8),
-        Text(
-          'Demo progression is running. Each stage may take about a minute.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
     );
   }
 }
@@ -405,21 +369,41 @@ class _OrderStateMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isPendingPayment = order.status == OrderStatus.pendingPayment;
-    final backgroundColor = isPendingPayment
+    final isNeutral =
+        order.status == OrderStatus.pendingPayment ||
+        order.status == OrderStatus.cancellationPending;
+    final isRefundFailure =
+        order.status == OrderStatus.cancelled &&
+        order.refundStatus == OrderRefundStatus.failed;
+    final backgroundColor = isNeutral
         ? colorScheme.secondaryContainer
+        : isRefundFailure
+        ? colorScheme.errorContainer
         : colorScheme.errorContainer;
-    final foregroundColor = isPendingPayment
+    final foregroundColor = isNeutral
         ? colorScheme.onSecondaryContainer
+        : isRefundFailure
+        ? colorScheme.onErrorContainer
         : colorScheme.onErrorContainer;
     final message = switch (order.status) {
       OrderStatus.pendingPayment =>
         'Payment is still required before this order can be prepared.',
       OrderStatus.paymentFailed =>
         'Payment was not completed. No inventory remains reserved.',
+      OrderStatus.cancellationPending =>
+        'Your cancellation is being processed. Its status will update here.',
+      OrderStatus.cancelled
+          when order.refundStatus == OrderRefundStatus.initiating =>
+        'Your order was cancelled. Razorpay is starting the refund.',
       OrderStatus.cancelled
           when order.refundStatus == OrderRefundStatus.pending =>
-        'This order was cancelled. Your refund is pending.',
+        'This order was cancelled. Your Razorpay refund is pending.',
+      OrderStatus.cancelled
+          when order.refundStatus == OrderRefundStatus.processed =>
+        'This order was cancelled. Your Razorpay refund was processed.',
+      OrderStatus.cancelled
+          when order.refundStatus == OrderRefundStatus.failed =>
+        'This order was cancelled, but Razorpay could not process the refund.',
       OrderStatus.cancelled => 'This order was cancelled.',
       OrderStatus.expired => 'The payment reservation for this order expired.',
       _ => 'This order is not currently being fulfilled.',
@@ -434,6 +418,68 @@ class _OrderStateMessage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Text(message, style: TextStyle(color: foregroundColor)),
       ),
+    );
+  }
+}
+
+class _RefundDetails extends StatelessWidget {
+  const _RefundDetails({
+    required this.isRefreshing,
+    required this.onRefresh,
+    required this.order,
+  });
+
+  final bool isRefreshing;
+  final VoidCallback? onRefresh;
+  final Order order;
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = order.refundAmountCents ?? order.totalPriceCents;
+    final statusText = switch (order.refundStatus) {
+      OrderRefundStatus.initiating => 'Starting',
+      OrderRefundStatus.pending => 'Pending',
+      OrderRefundStatus.processed => 'Processed',
+      OrderRefundStatus.failed => 'Failed',
+      OrderRefundStatus.notRequired => 'Not required',
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(title: 'Refund'),
+        const SizedBox(height: 8),
+        Text('$statusText: ${formatCents(amount)}'),
+        if (order.refundId case final refundId?) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Razorpay refund ${_shortOrderId(refundId)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        if (order.refundProcessedAt != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Processed ${formatOrderDate(order.refundProcessedAt!)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        if (onRefresh != null) ...[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: isRefreshing ? null : onRefresh,
+            icon: isRefreshing
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            label: Text(
+              isRefreshing ? 'Checking refund' : 'Check refund status',
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

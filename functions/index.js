@@ -10,7 +10,7 @@ const {initializeApp} = require("firebase-admin/app");
 const {getMessaging} = require("firebase-admin/messaging");
 const {logger} = require("firebase-functions");
 const {defineSecret} = require("firebase-functions/params");
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, onRequest, HttpsError} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {onDocumentUpdated} = require("firebase-functions/v2/firestore");
 const Razorpay = require("razorpay");
@@ -28,16 +28,31 @@ const {
 } = require("./payment_utils");
 const {verifyRazorpaySignature} = require("./razorpay_utils");
 const {
-  OrderLifecycleInputError,
+  RazorpayWebhookPayloadError,
+  parseRazorpayWebhookEvent,
+  verifyRazorpayWebhookSignature,
+  webhookEventId,
+} = require("./razorpay_webhook_utils");
+const {reconcileRazorpayWebhook} = require("./webhook_reconciliation");
+const {
+  OrderFulfillmentInputError,
   nextLifecycleTransition,
-  parseOrderLifecycleRequest,
+  parseOrderFulfillmentRequest,
 } = require("./order_lifecycle_utils");
 const {reserveCheckout} = require("./checkout_transaction");
 const {
   OrderCancellationInputError,
   parseOrderCancellationRequest,
 } = require("./order_cancellation_utils");
-const {cancelOrder} = require("./order_cancellation_transaction");
+const {
+  claimOrderCancellation,
+  finalizeOrderCancellation,
+  releaseFailedCancellation,
+} = require("./order_cancellation_transaction");
+const {
+  createOrRecoverRefund,
+} = require("./razorpay_refund_service");
+const {applyRefundStatus} = require("./refund_tracking");
 const {
   ReviewInputError,
   parseReviewDeleteRequest,
@@ -50,6 +65,7 @@ const {
 } = require("./admin_product_utils");
 const {
   isInvalidRegistrationError,
+  notificationForRefundStatus,
   notificationForStatus,
 } = require("./notification_utils");
 
@@ -57,15 +73,15 @@ initializeApp();
 
 const db = getFirestore();
 const PAYMENT_RESERVATION_MINUTES = 15;
-const DEMO_LIFECYCLE_DELAY_SECONDS = 30;
 const PENDING_PAYMENT = "pendingPayment";
 const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
+const razorpayWebhookSecret = defineSecret("RAZORPAY_WEBHOOK_SECRET");
 
 exports.upsertCatalogProduct = onCall(
   {region: "us-central1", invoker: "public"},
   async (request) => {
-    await requireCatalogAdmin(request.auth);
+    await requireAdmin(request.auth);
 
     let product;
     try {
@@ -118,11 +134,19 @@ exports.sendOrderStatusNotification = onDocumentUpdated(
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
-    if (!before || !after || before.status === after.status) return;
+    if (!before || !after) return;
 
     const {orderId, userId} = event.params;
-    const notification = notificationForStatus(after.status, orderId);
+    const statusChanged = before.status !== after.status;
+    const refundStatusChanged = before.refundStatus !== after.refundStatus;
+    const notification = statusChanged ?
+      notificationForStatus(after.status, orderId) :
+      refundStatusChanged ?
+        notificationForRefundStatus(after.refundStatus, orderId) : null;
     if (notification == null) return;
+    const notificationStatus = statusChanged ?
+      after.status : after.refundStatus;
+    const notificationType = statusChanged ? "orderStatus" : "refundStatus";
 
     const eventId = event.id.replaceAll("/", "_");
     const deliveryRef = db
@@ -137,7 +161,7 @@ exports.sendOrderStatusNotification = onDocumentUpdated(
       transaction.create(deliveryRef, {
         createdAt: FieldValue.serverTimestamp(),
         orderId,
-        status: after.status,
+        status: notificationStatus,
         state: "processing",
       });
       return true;
@@ -173,8 +197,8 @@ exports.sendOrderStatusNotification = onDocumentUpdated(
           apns: {payload: {aps: {sound: "default"}}},
           data: {
             orderId,
-            status: after.status,
-            type: "orderStatus",
+            status: notificationStatus,
+            type: notificationType,
           },
           notification,
           tokens: chunk.map((document) => document.data().token),
@@ -246,7 +270,7 @@ exports.submitProductReview = onCall(
   },
 );
 
-async function requireCatalogAdmin(auth) {
+async function requireAdmin(auth) {
   if (!auth) {
     throw new HttpsError(
       "unauthenticated",
@@ -258,7 +282,7 @@ async function requireCatalogAdmin(auth) {
   if (!admin.exists) {
     throw new HttpsError(
       "permission-denied",
-      "This account is not a catalog administrator.",
+      "This account is not an administrator.",
     );
   }
 }
@@ -334,7 +358,11 @@ exports.placeOrder = onCall(
 );
 
 exports.cancelOrder = onCall(
-  {region: "us-central1", invoker: "public"},
+  {
+    region: "us-central1",
+    invoker: "public",
+    secrets: [razorpayKeyId, razorpayKeySecret],
+  },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError(
@@ -359,10 +387,13 @@ exports.cancelOrder = onCall(
       .collection("orders")
       .doc(input.orderId);
 
+    const processingToken = randomUUID();
+    let claim;
     try {
-      return await cancelOrder({
+      claim = await claimOrderCancellation({
         db,
         orderRef,
+        processingToken,
         userId: request.auth.uid,
       });
     } catch (error) {
@@ -376,6 +407,134 @@ exports.cancelOrder = onCall(
       throw new HttpsError(
         "internal",
         "Could not cancel the order. Try again.",
+      );
+    }
+
+    if (claim.state === "completed") return claim.result;
+
+    if (!claim.requiresRefund) {
+      return finalizeOrderCancellation({
+        db,
+        orderRef,
+        processingToken: claim.processingToken,
+        userId: request.auth.uid,
+      });
+    }
+
+    try {
+      const razorpay = createRazorpayClient();
+      const refund = await createOrRecoverRefund({
+        amount: claim.amount,
+        orderId: claim.orderId,
+        paymentId: claim.paymentId,
+        processingToken: claim.processingToken,
+        razorpay,
+        userId: request.auth.uid,
+      });
+      if (refund.status === "failed") {
+        await releaseFailedCancellation({
+          errorMessage: "Razorpay rejected the refund.",
+          orderRef,
+          processingToken: claim.processingToken,
+        });
+        throw new HttpsError(
+          "failed-precondition",
+          "Razorpay could not start the refund. Try again.",
+        );
+      }
+
+      return await finalizeOrderCancellation({
+        db,
+        orderRef,
+        processingToken: claim.processingToken,
+        refund,
+        userId: request.auth.uid,
+      });
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+
+      if (isNonRetryableRazorpayError(error)) {
+        await releaseFailedCancellation({
+          errorMessage: razorpayErrorMessage(error),
+          orderRef,
+          processingToken: claim.processingToken,
+        });
+      }
+      logger.error("Razorpay refund creation failed", {
+        error,
+        orderId: input.orderId,
+        paymentId: claim.paymentId,
+        userId: request.auth.uid,
+      });
+      throw new HttpsError(
+        "unavailable",
+        "Could not start the refund. Try again shortly.",
+      );
+    }
+  },
+);
+
+exports.refreshOrderRefund = onCall(
+  {
+    region: "us-central1",
+    invoker: "public",
+    secrets: [razorpayKeyId, razorpayKeySecret],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in to refresh a refund.",
+      );
+    }
+
+    let input;
+    try {
+      input = parseOrderCancellationRequest(request.data);
+    } catch (error) {
+      if (error instanceof OrderCancellationInputError) {
+        throw new HttpsError("invalid-argument", error.message);
+      }
+      throw error;
+    }
+
+    const orderRef = db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("orders")
+      .doc(input.orderId);
+    const orderSnapshot = await orderRef.get();
+    if (!orderSnapshot.exists) {
+      throw new HttpsError("not-found", "Order was not found.");
+    }
+
+    const order = orderSnapshot.data();
+    if (order.status !== "cancelled" || !order.refundId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This order does not have a refund to refresh.",
+      );
+    }
+
+    try {
+      const gatewayRefund = await createRazorpayClient()
+        .refunds.fetch(order.refundId);
+      const refund = await applyRefundStatus({db, gatewayRefund});
+      return {
+        orderId: input.orderId,
+        refundId: refund.id,
+        refundStatus: refund.status,
+      };
+    } catch (error) {
+      logger.error("Could not refresh Razorpay refund", {
+        error,
+        orderId: input.orderId,
+        refundId: order.refundId,
+        userId: request.auth.uid,
+      });
+      throw new HttpsError(
+        "unavailable",
+        "Could not refresh the refund. Try again.",
       );
     }
   },
@@ -625,6 +784,66 @@ exports.verifyRazorpayPayment = onCall(
   },
 );
 
+exports.razorpayWebhook = onRequest(
+  {
+    region: "us-central1",
+    invoker: "public",
+    secrets: [razorpayWebhookSecret],
+  },
+  async (request, response) => {
+    if (request.method !== "POST") {
+      response.set("Allow", "POST");
+      response.status(405).json({error: "Method not allowed."});
+      return;
+    }
+
+    const rawBody = request.rawBody;
+    const signature = request.get("x-razorpay-signature");
+    if (!verifyRazorpayWebhookSignature({
+      payload: rawBody,
+      razorpaySignature: signature,
+      secret: razorpayWebhookSecret.value(),
+    })) {
+      logger.warn("Rejected Razorpay webhook with an invalid signature.");
+      response.status(401).json({error: "Invalid webhook signature."});
+      return;
+    }
+
+    let event;
+    try {
+      event = parseRazorpayWebhookEvent(request.body);
+    } catch (error) {
+      if (error instanceof RazorpayWebhookPayloadError) {
+        logger.warn("Ignored malformed Razorpay webhook.", {
+          error: error.message,
+        });
+        response.status(200).json({received: true, ignored: true});
+        return;
+      }
+      throw error;
+    }
+
+    try {
+      const result = await reconcileRazorpayWebhook({
+        db,
+        event,
+        eventId: webhookEventId(rawBody),
+      });
+      logger.info("Razorpay webhook reconciled.", {
+        action: result.action,
+        eventName: event.eventName,
+      });
+      response.status(200).json({received: true});
+    } catch (error) {
+      logger.error("Could not reconcile Razorpay webhook.", {
+        error,
+        eventName: event.eventName,
+      });
+      response.status(500).json({error: "Webhook reconciliation failed."});
+    }
+  },
+);
+
 exports.expirePaymentReservations = onSchedule(
   {
     region: "us-central1",
@@ -659,21 +878,52 @@ exports.expirePaymentReservations = onSchedule(
   },
 );
 
-exports.startOrderLifecycleDemo = onCall(
+exports.syncPendingRazorpayRefunds = onSchedule(
+  {
+    region: "us-central1",
+    schedule: "every 15 minutes",
+    secrets: [razorpayKeyId, razorpayKeySecret],
+    timeZone: "UTC",
+  },
+  async () => {
+    const pendingRefunds = await db
+      .collection("refunds")
+      .where("status", "==", "pending")
+      .limit(50)
+      .get();
+    const razorpay = createRazorpayClient();
+    let updatedCount = 0;
+
+    for (const refundDocument of pendingRefunds.docs) {
+      try {
+        const gatewayRefund = await razorpay.refunds.fetch(refundDocument.id);
+        const refund = await applyRefundStatus({db, gatewayRefund});
+        if (refund.status !== "pending") updatedCount += 1;
+      } catch (error) {
+        logger.error("Could not synchronize Razorpay refund", {
+          error,
+          refundId: refundDocument.id,
+        });
+      }
+    }
+
+    logger.info("Razorpay refund synchronization completed", {
+      inspectedCount: pendingRefunds.size,
+      updatedCount,
+    });
+  },
+);
+
+exports.advanceOrderFulfillment = onCall(
   {region: "us-central1", invoker: "public"},
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to simulate an order lifecycle.",
-      );
-    }
+    await requireAdmin(request.auth);
 
     let input;
     try {
-      input = parseOrderLifecycleRequest(request.data);
+      input = parseOrderFulfillmentRequest(request.data);
     } catch (error) {
-      if (error instanceof OrderLifecycleInputError) {
+      if (error instanceof OrderFulfillmentInputError) {
         throw new HttpsError("invalid-argument", error.message);
       }
       throw error;
@@ -681,7 +931,7 @@ exports.startOrderLifecycleDemo = onCall(
 
     const orderRef = db
       .collection("users")
-      .doc(request.auth.uid)
+      .doc(input.userId)
       .collection("orders")
       .doc(input.orderId);
 
@@ -695,108 +945,29 @@ exports.startOrderLifecycleDemo = onCall(
       if (!nextLifecycleTransition(order.status)) {
         throw new HttpsError(
           "failed-precondition",
-          "This order cannot start the delivery simulation.",
+          "This order cannot advance to the next fulfillment stage.",
         );
       }
 
-      const nextLifecycleAt = Timestamp.fromMillis(
-        Date.now() + DEMO_LIFECYCLE_DELAY_SECONDS * 1000,
-      );
+      const transition = nextLifecycleTransition(order.status);
       const updates = {
-        lifecycleDemoEnabled: true,
-        nextLifecycleAt,
+        [transition.timestampField]: FieldValue.serverTimestamp(),
+        fulfillmentUpdatedBy: request.auth.uid,
+        lifecycleDemoEnabled: FieldValue.delete(),
+        nextLifecycleAt: FieldValue.delete(),
+        status: transition.status,
         updatedAt: FieldValue.serverTimestamp(),
       };
-
-      if (order.status === "confirmed") {
-        updates.status = "paid";
-        updates.paidAt = order.paidAt || order.createdAt ||
-          FieldValue.serverTimestamp();
-      }
 
       transaction.update(orderRef, updates);
       return {
-        nextLifecycleAtMillis: nextLifecycleAt.toMillis(),
-        status: updates.status || order.status,
+        orderId: input.orderId,
+        status: transition.status,
+        userId: input.userId,
       };
     });
   },
 );
-
-exports.advanceOrderLifecycleDemos = onSchedule(
-  {
-    region: "us-central1",
-    schedule: "every 1 minutes",
-    timeZone: "UTC",
-  },
-  async () => {
-    const dueOrders = await db
-      .collectionGroup("orders")
-      .where("lifecycleDemoEnabled", "==", true)
-      .where("nextLifecycleAt", "<=", Timestamp.now())
-      .limit(50)
-      .get();
-
-    let advancedCount = 0;
-    for (const order of dueOrders.docs) {
-      try {
-        const advanced = await advanceDemoOrder(order.ref);
-        if (advanced) advancedCount += 1;
-      } catch (error) {
-        logger.error("Could not advance demo order lifecycle", {
-          orderPath: order.ref.path,
-          error,
-        });
-      }
-    }
-
-    logger.info("Demo order lifecycle update completed", {
-      advancedCount,
-      inspectedCount: dueOrders.size,
-    });
-  },
-);
-
-async function advanceDemoOrder(orderRef) {
-  return db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(orderRef);
-    if (!snapshot.exists) return false;
-
-    const order = snapshot.data();
-    const nextLifecycleAt = order.nextLifecycleAt;
-    if (
-      order.lifecycleDemoEnabled !== true ||
-      !(nextLifecycleAt instanceof Timestamp) ||
-      nextLifecycleAt.toMillis() > Date.now()
-    ) {
-      return false;
-    }
-
-    const transition = nextLifecycleTransition(order.status);
-    if (!transition) {
-      transaction.update(orderRef, {
-        lifecycleDemoEnabled: false,
-        nextLifecycleAt: FieldValue.delete(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      return false;
-    }
-
-    const isDelivered = transition.status === "delivered";
-    transaction.update(orderRef, {
-      [transition.timestampField]: FieldValue.serverTimestamp(),
-      lifecycleDemoEnabled: !isDelivered,
-      nextLifecycleAt: isDelivered ?
-        FieldValue.delete() :
-        Timestamp.fromMillis(
-          Date.now() + DEMO_LIFECYCLE_DELAY_SECONDS * 1000,
-        ),
-      status: transition.status,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    return true;
-  });
-}
 
 async function resolvePendingOrder(orderRef, requestedOutcome) {
   try {
@@ -898,6 +1069,24 @@ function ensurePendingOrder(order) {
   if (!Number.isInteger(order.totalPriceCents) || order.totalPriceCents <= 0) {
     throw new HttpsError("internal", "Order total is invalid.");
   }
+}
+
+function createRazorpayClient() {
+  return new Razorpay({
+    key_id: razorpayKeyId.value(),
+    key_secret: razorpayKeySecret.value(),
+  });
+}
+
+function isNonRetryableRazorpayError(error) {
+  const statusCode = Number(error?.statusCode || error?.status);
+  return statusCode >= 400 && statusCode < 500 && statusCode !== 429;
+}
+
+function razorpayErrorMessage(error) {
+  const description = error?.error?.description || error?.description;
+  return typeof description === "string" ?
+    description : "Razorpay rejected the refund request.";
 }
 
 function ensureReservationActive(order) {

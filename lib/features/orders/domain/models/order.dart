@@ -12,12 +12,15 @@ class Order {
   final DateTime? shippedAt;
   final DateTime? deliveredAt;
   final DateTime? cancelledAt;
-  final bool isLifecycleDemoEnabled;
+  final DateTime? refundCreatedAt;
+  final DateTime? refundProcessedAt;
   final List<CartItem> items;
   final PaymentMethod paymentMethod;
   final DateTime? reservationExpiresAt;
   final OrderStatus status;
   final OrderRefundStatus refundStatus;
+  final String? refundId;
+  final int? refundAmountCents;
 
   const Order({
     required this.id,
@@ -29,12 +32,15 @@ class Order {
     this.shippedAt,
     this.deliveredAt,
     this.cancelledAt,
-    this.isLifecycleDemoEnabled = false,
+    this.refundCreatedAt,
+    this.refundProcessedAt,
     required this.items,
     required this.paymentMethod,
     required this.reservationExpiresAt,
     required this.status,
     this.refundStatus = OrderRefundStatus.notRequired,
+    this.refundId,
+    this.refundAmountCents,
   });
 
   int get totalCount => items.fold(0, (sum, item) => sum + item.quantity);
@@ -61,6 +67,7 @@ class Order {
 
 enum OrderRefundStatus {
   notRequired('notRequired'),
+  initiating('initiating'),
   pending('pending'),
   processed('processed'),
   failed('failed');
