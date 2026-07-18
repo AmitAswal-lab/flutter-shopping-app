@@ -14,7 +14,6 @@ class Order {
   final DateTime? cancelledAt;
   final DateTime? refundCreatedAt;
   final DateTime? refundProcessedAt;
-  final bool isLifecycleDemoEnabled;
   final List<CartItem> items;
   final PaymentMethod paymentMethod;
   final DateTime? reservationExpiresAt;
@@ -35,7 +34,6 @@ class Order {
     this.cancelledAt,
     this.refundCreatedAt,
     this.refundProcessedAt,
-    this.isLifecycleDemoEnabled = false,
     required this.items,
     required this.paymentMethod,
     required this.reservationExpiresAt,

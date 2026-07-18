@@ -117,7 +117,6 @@ class OrderHistory extends ChangeNotifier {
       refundProcessedAt: refundProcessedAt is Timestamp
           ? refundProcessedAt.toDate()
           : null,
-      isLifecycleDemoEnabled: data['lifecycleDemoEnabled'] == true,
       items: List.unmodifiable(
         items.map((item) {
           return CartItem.fromJson(Map<String, Object?>.from(item as Map));

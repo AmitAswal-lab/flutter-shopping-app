@@ -9,8 +9,10 @@ const {
   initializeTestEnvironment,
 } = require("@firebase/rules-unit-testing");
 const {
+  collectionGroup,
   deleteDoc,
   doc,
+  getDocs,
   getDoc,
   serverTimestamp,
   setDoc,
@@ -138,20 +140,33 @@ test("delivery addresses are private and validate their saved shape", async () =
   await assertFails(updateDoc(address, { address: "No" }));
 });
 
-test("orders are owner-readable but remain backend-write-only", async () => {
+test("orders are readable by their owner or an administrator and backend-write-only", async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), "users/alice/orders/order_123"), {
       status: "paid",
+    });
+    await setDoc(doc(context.firestore(), "admins/catalog-admin"), {
+      role: "catalogAdmin",
     });
   });
 
   const alice = environment.authenticatedContext("alice").firestore();
   const bob = environment.authenticatedContext("bob").firestore();
+  const admin = environment
+    .authenticatedContext("catalog-admin")
+    .firestore();
   const order = doc(alice, "users/alice/orders/order_123");
 
   await assertSucceeds(getDoc(order));
   await assertFails(getDoc(doc(bob, "users/alice/orders/order_123")));
+  await assertSucceeds(getDoc(doc(admin, "users/alice/orders/order_123")));
+  await assertSucceeds(getDocs(collectionGroup(admin, "orders")));
   await assertFails(updateDoc(order, { status: "delivered" }));
+  await assertFails(
+    updateDoc(doc(admin, "users/alice/orders/order_123"), {
+      status: "delivered",
+    }),
+  );
   await assertFails(deleteDoc(order));
 });
 

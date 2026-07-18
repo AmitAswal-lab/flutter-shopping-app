@@ -56,8 +56,13 @@ class _SignInPageState extends State<SignInPage> {
                   const Icon(Icons.admin_panel_settings_outlined, size: 48),
                   const SizedBox(height: 20),
                   Text(
-                    'Catalog admin',
+                    'Store admin',
                     style: Theme.of(context).textTheme.headlineMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Manage your catalog and fulfill paid orders.',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),

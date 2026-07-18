@@ -25,33 +25,8 @@ class OrderDetailScreen extends StatefulWidget {
 }
 
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
-  bool _isStartingDemo = false;
   bool _isCancelling = false;
   bool _isRefreshingRefund = false;
-
-  Future<void> _startDemo(Order order) async {
-    setState(() => _isStartingDemo = true);
-
-    try {
-      await context.read<OrderLifecycleService>().startDemo(order.id);
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Delivery simulation started. Status will update automatically.',
-          ),
-        ),
-      );
-    } on OrderLifecycleFailure catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
-    } finally {
-      if (mounted) setState(() => _isStartingDemo = false);
-    }
-  }
 
   Future<void> _cancelOrder(Order order) async {
     final confirmed = await showDialog<bool>(
@@ -150,29 +125,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             _SectionTitle(title: 'Delivery progress'),
             const SizedBox(height: 12),
             _OrderTimeline(order: order),
-            if (order.status.canAdvanceFulfillmentDemo) ...[
-              const SizedBox(height: 20),
-              if (order.isLifecycleDemoEnabled)
-                const _DemoRunningIndicator()
-              else
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _isStartingDemo ? null : () => _startDemo(order),
-                    icon: _isStartingDemo
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.play_arrow),
-                    label: Text(
-                      _isStartingDemo
-                          ? 'Starting simulation'
-                          : 'Simulate delivery progress',
-                    ),
-                  ),
-                ),
-            ],
             const SizedBox(height: 28),
           ] else ...[
             _OrderStateMessage(order: order),
@@ -237,25 +189,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _DemoRunningIndicator extends StatelessWidget {
-  const _DemoRunningIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const LinearProgressIndicator(),
-        const SizedBox(height: 8),
-        Text(
-          'Demo progression is running. Each stage may take about a minute.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
     );
   }
 }
