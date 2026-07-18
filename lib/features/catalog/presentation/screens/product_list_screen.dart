@@ -19,8 +19,18 @@ class ProductListScreen extends StatelessWidget {
   }
 }
 
-class _ProductCatalog extends StatelessWidget {
+class _ProductCatalog extends StatefulWidget {
   const _ProductCatalog();
+
+  @override
+  State<_ProductCatalog> createState() => _ProductCatalogState();
+}
+
+class _ProductCatalogState extends State<_ProductCatalog> {
+  static const _pageSize = 8;
+
+  int _visibleProductCount = _pageSize;
+  String? _filterSignature;
 
   @override
   Widget build(BuildContext context) {
@@ -38,14 +48,28 @@ class _ProductCatalog extends StatelessWidget {
       return const _EmptyCatalog();
     }
 
-    final visibleProducts = context.watch<ProductFilter>().applyTo(
-      catalog.products,
-    );
+    final filter = context.watch<ProductFilter>();
+    final visibleProducts = filter.applyTo(catalog.products);
+    final filterSignature =
+        '${filter.query}|${filter.category.name}|${filter.sort.name}';
+    if (_filterSignature != filterSignature) {
+      _filterSignature = filterSignature;
+      _visibleProductCount = _pageSize;
+    }
+
+    final displayedProducts = visibleProducts
+        .take(_visibleProductCount)
+        .toList(growable: false);
+    final remainingProductCount =
+        visibleProducts.length - displayedProducts.length;
 
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
-          child: _SearchAndFilterHeader(visibleCount: visibleProducts.length),
+          child: _SearchAndFilterHeader(
+            visibleCount: visibleProducts.length,
+            sort: filter.sort,
+          ),
         ),
         if (visibleProducts.isEmpty)
           const SliverFillRemaining(
@@ -56,7 +80,7 @@ class _ProductCatalog extends StatelessWidget {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             sliver: SliverGrid.builder(
-              itemCount: visibleProducts.length,
+              itemCount: displayedProducts.length,
               gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 240,
                 mainAxisSpacing: 16,
@@ -64,8 +88,23 @@ class _ProductCatalog extends StatelessWidget {
                 childAspectRatio: 0.52,
               ),
               itemBuilder: (context, index) {
-                return ProductCard(product: visibleProducts[index]);
+                return ProductCard(product: displayedProducts[index]);
               },
+            ),
+          ),
+        if (remainingProductCount > 0)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() => _visibleProductCount += _pageSize);
+                },
+                icon: const Icon(Icons.expand_more),
+                label: Text(
+                  'Show ${remainingProductCount < _pageSize ? remainingProductCount : _pageSize} more products',
+                ),
+              ),
             ),
           ),
       ],
@@ -74,9 +113,13 @@ class _ProductCatalog extends StatelessWidget {
 }
 
 class _SearchAndFilterHeader extends StatelessWidget {
-  const _SearchAndFilterHeader({required this.visibleCount});
+  const _SearchAndFilterHeader({
+    required this.visibleCount,
+    required this.sort,
+  });
 
   final int visibleCount;
+  final ProductSort sort;
 
   @override
   Widget build(BuildContext context) {
@@ -105,8 +148,16 @@ class _SearchAndFilterHeader extends StatelessWidget {
                 TextButton.icon(
                   onPressed: context.read<ProductFilter>().clear,
                   icon: const Icon(Icons.clear_all),
-                  label: const Text('Clear'),
+                  label: const Text('Reset'),
                 ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text('Sort by', style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(width: 8),
+              Flexible(child: _SortMenu(sort: sort)),
             ],
           ),
         ],
@@ -254,6 +305,45 @@ class _ProductSearchField extends StatelessWidget {
   }
 }
 
+class _SortMenu extends StatelessWidget {
+  const _SortMenu({required this.sort});
+
+  final ProductSort sort;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<ProductSort>(
+      tooltip: 'Sort products',
+      onSelected: context.read<ProductFilter>().setSort,
+      itemBuilder: (context) {
+        return ProductSort.values
+            .map(
+              (option) => PopupMenuItem(
+                value: option,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      child: option == sort
+                          ? const Icon(Icons.check, size: 18)
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(option.label),
+                  ],
+                ),
+              ),
+            )
+            .toList(growable: false);
+      },
+      child: Chip(
+        avatar: const Icon(Icons.sort, size: 18),
+        label: Text(sort.label),
+      ),
+    );
+  }
+}
+
 class _CategoryFilters extends StatelessWidget {
   const _CategoryFilters();
 
@@ -262,11 +352,25 @@ class _CategoryFilters extends StatelessWidget {
     final selectedCategory = context.select<ProductFilter, ProductCategory>(
       (filter) => filter.category,
     );
+    final categories = context.select<ProductCatalog, List<ProductCategory>>((
+      catalog,
+    ) {
+      final includedCategories = catalog.products
+          .map((product) => product.category)
+          .toSet();
+      return ProductCategory.values
+          .where(
+            (category) =>
+                category == ProductCategory.all ||
+                includedCategories.contains(category),
+          )
+          .toList(growable: false);
+    });
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
-        children: ProductCategory.values
+        children: categories
             .map((category) {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),

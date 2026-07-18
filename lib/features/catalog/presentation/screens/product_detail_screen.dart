@@ -119,6 +119,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final availableToAdd = remainingStock > 0 ? remainingStock : 0;
     final canAddToCart = availableToAdd >= _quantity;
     final lineTotalCents = product.priceCents * _quantity;
+    final relatedProducts = context.select<ProductCatalog, List<Product>>((
+      catalog,
+    ) {
+      final products =
+          catalog.products
+              .where(
+                (candidate) =>
+                    candidate.id != product.id &&
+                    candidate.category == product.category,
+              )
+              .toList()
+            ..sort((first, second) {
+              final ratingComparison = second.rating.compareTo(first.rating);
+              if (ratingComparison != 0) return ratingComparison;
+              return second.reviewCount.compareTo(first.reviewCount);
+            });
+      return products.take(6).toList(growable: false);
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -186,10 +204,92 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   : 'Stock limit reached',
             ),
           ),
+          if (relatedProducts.isNotEmpty) ...[
+            const SizedBox(height: 32),
+            _RelatedProducts(products: relatedProducts),
+          ],
           const SizedBox(height: 32),
           ProductReviewSection(product: product),
         ],
       ),
+    );
+  }
+}
+
+class _RelatedProducts extends StatelessWidget {
+  const _RelatedProducts({required this.products});
+
+  final List<Product> products;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'You may also like',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 218,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: products.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final product = products[index];
+              return SizedBox(
+                width: 156,
+                child: Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ProductDetailScreen(product: product),
+                        ),
+                      );
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: ColoredBox(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHigh,
+                            child: ProductImage(product: product),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                product.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                formatCents(product.priceCents),
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
