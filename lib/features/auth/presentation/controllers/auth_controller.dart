@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:shopping_app/features/auth/data/services/account_security_service.dart';
+
 class AuthController extends ChangeNotifier {
   final FirebaseAuth? _auth;
   final String? setupError;
@@ -31,6 +33,7 @@ class AuthController extends ChangeNotifier {
   User? get user => _user;
   bool get isConfigured => _auth != null;
   bool get isSignedIn => _user != null;
+  bool get isEmailVerified => _user?.emailVerified ?? false;
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
@@ -52,13 +55,16 @@ class AuthController extends ChangeNotifier {
         password: password,
       );
 
+      final user = credential?.user;
       final name = displayName?.trim();
-      if (name == null || name.isEmpty) return;
+      if (name != null && name.isNotEmpty) {
+        await user?.updateDisplayName(name);
+      }
 
-      await credential?.user?.updateDisplayName(name);
-      await credential?.user?.reload();
+      await user?.sendEmailVerification();
+      await user?.reload();
       _user = _auth?.currentUser;
-    });
+    }, successMessage: 'Verification email sent. Check your inbox.');
   }
 
   Future<void> updateDisplayName(String displayName) async {
@@ -75,10 +81,87 @@ class AuthController extends ChangeNotifier {
     }, successMessage: 'Profile updated.');
   }
 
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _runAuthAction(
+      () async {
+        await _auth?.sendPasswordResetEmail(email: email.trim());
+      },
+      successMessage:
+          'If an account exists for this email, a password reset link has '
+          'been sent. Check your inbox and spam folder.',
+    );
+  }
+
+  Future<void> refreshCurrentUser() async {
+    await _runAuthAction(() async {
+      final user = _requireCurrentUser();
+      await user.reload();
+      final refreshedUser = _auth?.currentUser;
+      if (refreshedUser?.emailVerified ?? false) {
+        await refreshedUser?.getIdToken(true);
+      }
+      _user = refreshedUser;
+    });
+  }
+
+  Future<void> sendEmailVerification() async {
+    await _runAuthAction(() async {
+      final user = _requireCurrentUser();
+      if (user.emailVerified) return;
+
+      await user.sendEmailVerification();
+    }, successMessage: 'Verification email sent. Check your inbox.');
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _runAuthAction(() async {
+      final user = _requireCurrentUser();
+      await _reauthenticate(user, currentPassword);
+      await user.updatePassword(newPassword);
+    }, successMessage: 'Password changed.');
+  }
+
+  Future<void> deleteAccount({
+    required String currentPassword,
+    required AccountSecurityService securityService,
+  }) async {
+    await _runAuthAction(() async {
+      final user = _requireCurrentUser();
+      await _reauthenticate(user, currentPassword);
+      await securityService.deleteAccount();
+      await _auth?.signOut();
+      _user = null;
+    }, successMessage: 'Account deleted.');
+  }
+
   Future<void> signOut() async {
     await _runAuthAction(() async {
       await _auth?.signOut();
     });
+  }
+
+  User _requireCurrentUser() {
+    final user = _auth?.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(code: 'user-not-found');
+    }
+    return user;
+  }
+
+  Future<void> _reauthenticate(User user, String currentPassword) async {
+    final email = user.email;
+    if (email == null || email.isEmpty) {
+      throw FirebaseAuthException(code: 'user-not-found');
+    }
+
+    final credential = EmailAuthProvider.credential(
+      email: email,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(credential);
   }
 
   void clearError() {
@@ -115,6 +198,9 @@ class AuthController extends ChangeNotifier {
     try {
       await action();
       _successMessage = successMessage;
+    } on AccountSecurityFailure catch (error) {
+      _errorMessage = error.message;
+      _successMessage = null;
     } on FirebaseAuthException catch (error) {
       _errorMessage = _messageFor(error);
       _successMessage = null;
@@ -135,6 +221,10 @@ class AuthController extends ChangeNotifier {
       'user-not-found' => 'No account was found for this email.',
       'weak-password' => 'Password should be at least 6 characters.',
       'wrong-password' => 'Email or password is incorrect.',
+      'requires-recent-login' =>
+        'Sign in again before changing account security settings.',
+      'too-many-requests' => 'Too many attempts. Please try again later.',
+      'network-request-failed' => 'Check your connection and try again.',
       _ => error.message ?? 'Authentication failed. Please try again.',
     };
   }

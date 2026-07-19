@@ -8,6 +8,7 @@ import 'package:shopping_app/app/presentation/auth_gate.dart';
 import 'package:shopping_app/app/presentation/notification_listener.dart';
 import 'package:shopping_app/app/presentation/user_data_binder.dart';
 import 'package:shopping_app/core/theme/app_theme.dart';
+import 'package:shopping_app/features/auth/data/services/account_security_service.dart';
 import 'package:shopping_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:shopping_app/features/cart/presentation/controllers/cart.dart';
 import 'package:shopping_app/features/catalog/presentation/controllers/product_catalog.dart';
@@ -56,6 +57,11 @@ class ShoppingApp extends StatelessWidget {
           create: (_) => firebaseSetup.isConfigured
               ? PaymentService.configured()
               : const PaymentService.unconfigured(),
+        ),
+        Provider(
+          create: (_) => firebaseSetup.isConfigured
+              ? AccountSecurityService.configured()
+              : const AccountSecurityService.unconfigured(),
         ),
         Provider(
           create: (_) => firebaseSetup.isConfigured
