@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:shopping_app/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:shopping_app/features/auth/presentation/screens/account_security_screen.dart';
 import 'package:shopping_app/features/notifications/data/services/notification_service.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/delivery_addresses_controller.dart';
@@ -66,6 +67,21 @@ class AccountScreen extends StatelessWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const DeliveryProfileScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            _AccountActionTile(
+              icon: Icons.security_outlined,
+              title: 'Security',
+              subtitle: user?.emailVerified == true
+                  ? 'Email verified and password settings'
+                  : 'Verify your email and manage password',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AccountSecurityScreen(),
                   ),
                 );
               },

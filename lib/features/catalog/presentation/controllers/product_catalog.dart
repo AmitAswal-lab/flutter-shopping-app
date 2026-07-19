@@ -6,13 +6,12 @@ import 'package:flutter/foundation.dart';
 import 'package:shopping_app/features/catalog/domain/models/product.dart';
 
 class ProductCatalog extends ChangeNotifier {
-  ProductCatalog({required this.firestore}) {
-    unawaited(load());
-  }
+  ProductCatalog({required this.firestore});
 
   final FirebaseFirestore? firestore;
   final List<Product> _products = [];
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
+  bool _hasAccess = false;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -25,6 +24,18 @@ class ProductCatalog extends ChangeNotifier {
       if (product.id == productId) return product;
     }
     return null;
+  }
+
+  void bindAccess(bool hasAccess) {
+    if (_hasAccess == hasAccess) return;
+
+    _hasAccess = hasAccess;
+    if (hasAccess) {
+      unawaited(load());
+      return;
+    }
+
+    unawaited(_clear());
   }
 
   Future<void> load() async {
@@ -95,6 +106,15 @@ class ProductCatalog extends ChangeNotifier {
 
   Query<Map<String, dynamic>> get _productsQuery {
     return firestore!.collection('products').orderBy('sortOrder');
+  }
+
+  Future<void> _clear() async {
+    await _subscription?.cancel();
+    _subscription = null;
+    _products.clear();
+    _isLoading = false;
+    _errorMessage = null;
+    notifyListeners();
   }
 
   @override
