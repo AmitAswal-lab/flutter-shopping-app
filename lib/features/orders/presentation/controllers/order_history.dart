@@ -67,14 +67,26 @@ class OrderHistory extends ChangeNotifier {
         .snapshots()
         .listen(
           (snapshot) {
+            final parsedOrders = <Order>[];
+            for (final document in snapshot.docs) {
+              try {
+                parsedOrders.add(_orderFromDocument(document));
+              } catch (error, stackTrace) {
+                debugPrint(
+                  'Skipped malformed order ${document.id}: $error\n$stackTrace',
+                );
+              }
+            }
+
             _orders
               ..clear()
-              ..addAll(snapshot.docs.map(_orderFromDocument));
+              ..addAll(parsedOrders);
             _isLoading = false;
             _errorMessage = null;
             notifyListeners();
           },
-          onError: (_) {
+          onError: (Object error, StackTrace stackTrace) {
+            debugPrint('Could not load order history: $error\n$stackTrace');
             _isLoading = false;
             _errorMessage = 'Could not load order history.';
             notifyListeners();

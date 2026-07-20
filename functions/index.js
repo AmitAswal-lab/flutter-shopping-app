@@ -66,6 +66,7 @@ const {
 } = require("./admin_product_utils");
 const {
   isInvalidRegistrationError,
+  notificationItemLabel,
   notificationForRefundStatus,
   notificationForStatus,
 } = require("./notification_utils");
@@ -140,10 +141,11 @@ exports.sendOrderStatusNotification = onDocumentUpdated(
     const {orderId, userId} = event.params;
     const statusChanged = before.status !== after.status;
     const refundStatusChanged = before.refundStatus !== after.refundStatus;
+    const itemLabel = notificationItemLabel(after.items);
     const notification = statusChanged ?
-      notificationForStatus(after.status, orderId) :
+      notificationForStatus(after.status, itemLabel) :
       refundStatusChanged ?
-        notificationForRefundStatus(after.refundStatus, orderId) : null;
+        notificationForRefundStatus(after.refundStatus, itemLabel) : null;
     if (notification == null) return;
     const notificationStatus = statusChanged ?
       after.status : after.refundStatus;

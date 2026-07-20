@@ -23,7 +23,8 @@ The app currently includes:
 - Cart, Razorpay checkout, payment verification, and order confirmation flow
 - Wishlist/favorites experience
 - User-scoped cart, wishlist, and order history backed by Cloud Firestore
-- Separate sign-in/create-account flow and signed-in account profile UI
+- Email-verified sign-in/create-account flow with password reset, password
+  change, and account deletion controls
 - Firestore-backed delivery profile with checkout prefill
 - Centralized Material theme foundation with persisted local theme preference
 - Local recent search history with `SharedPreferences`
@@ -43,6 +44,12 @@ Current state-management decisions:
 - `AuthController` owns Firebase auth/profile state and is exposed with `ChangeNotifierProvider`.
 - `AppPreferences` owns local app preferences and persists them with `SharedPreferences`.
 - `AuthGate` shows the auth flow before the main shopping shell when no user is signed in.
+- Newly registered users remain on an email-verification screen until they
+  verify their address. They can resend the email, refresh their status, or
+  sign out from that screen.
+- User-scoped data binding and customer Cloud Functions require a verified
+  email address. Account deletion remains available to an authenticated,
+  unverified user so they can remove an unfinished registration.
 - Cart, wishlist, and order history bind to the signed-in user's Firebase UID.
 - Delivery profile fields live on the signed-in user's Firestore document.
 - Cart mutations live in `Cart`, such as `add`, `remove`, `setQuantity`, and `clear`.
@@ -152,6 +159,14 @@ The project uses:
 
 Completed feature branches are reviewed and merged into `dev`, then removed.
 When `dev` reaches a meaningful upgrade point, it can be merged into `main`.
+
+## MVP Launch Validation
+
+The customer shopping flow is implemented. Before declaring an MVP usable,
+complete the repeatable manual checks in
+[MVP Launch Validation](docs/mvp_launch_validation.md). It covers the
+verification gate, customer purchase and order lifecycle, Razorpay webhook
+reconciliation, admin readiness, and the current iOS/Android release boundary.
 
 ## Running The App
 
