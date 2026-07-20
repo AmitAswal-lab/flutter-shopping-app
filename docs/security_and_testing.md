@@ -96,6 +96,24 @@ products/{productId}
 Trusted Cloud Functions use the Firebase Admin SDK for inventory, payment,
 order, and lifecycle updates.
 
+## Account Security and Verification
+
+New email/password registrations receive a Firebase verification email and the
+customer app keeps the user on a dedicated verification screen until the
+verification status has been refreshed successfully. User-scoped Firestore
+access requires the `email_verified` authentication claim, and customer
+callable functions make the same check before they process customer data.
+
+Password-reset requests intentionally return the same neutral confirmation for
+existing and nonexistent email addresses. Firebase Email Enumeration Protection
+therefore avoids disclosing whether an account exists. Existing users receive a
+reset email; nonexistent addresses receive no email.
+
+Changing a password requires reauthentication with the current password.
+Account deletion is performed by a callable Cloud Function. It remains
+available to an authenticated but unverified user so a user can delete an
+incomplete registration.
+
 Rules validate field names, basic types, string lengths, quantities, document
 identity, and server timestamps. These checks reduce malformed or unexpected
 data. They do not make client-provided cart names or prices authoritative;

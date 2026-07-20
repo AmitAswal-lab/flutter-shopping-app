@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:shopping_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:shopping_app/features/cart/presentation/controllers/cart.dart';
+import 'package:shopping_app/features/catalog/presentation/controllers/product_catalog.dart';
 import 'package:shopping_app/features/notifications/data/services/notification_service.dart';
 import 'package:shopping_app/features/orders/presentation/controllers/order_history.dart';
 import 'package:shopping_app/features/profile/presentation/controllers/user_profile_controller.dart';
@@ -55,8 +56,10 @@ class _UserDataBinderState extends State<UserDataBinder> {
   }
 
   void _bindUserData() {
-    final userId = _auth?.user?.uid;
+    final user = _auth?.user;
+    final userId = user?.emailVerified == true ? user?.uid : null;
 
+    context.read<ProductCatalog>().bindAccess(userId != null);
     context.read<Cart>().bindUser(userId);
     context.read<Wishlist>().bindUser(userId);
     context.read<OrderHistory>().bindUser(userId);

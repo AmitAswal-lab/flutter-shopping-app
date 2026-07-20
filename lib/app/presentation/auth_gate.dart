@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:shopping_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:shopping_app/features/auth/presentation/screens/auth_screen.dart';
+import 'package:shopping_app/features/auth/presentation/screens/email_verification_screen.dart';
 import 'package:shopping_app/features/navigation/presentation/screens/main_shell_screen.dart';
 
 class AuthGate extends StatelessWidget {
@@ -14,6 +15,10 @@ class AuthGate extends StatelessWidget {
 
     if (!auth.isConfigured || !auth.isSignedIn) {
       return const AuthScreen();
+    }
+
+    if (!auth.isEmailVerified) {
+      return const EmailVerificationScreen();
     }
 
     return const MainShellScreen();

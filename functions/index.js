@@ -7,6 +7,7 @@ const {
   Timestamp,
 } = require("firebase-admin/firestore");
 const {initializeApp} = require("firebase-admin/app");
+const {getAuth} = require("firebase-admin/auth");
 const {getMessaging} = require("firebase-admin/messaging");
 const {logger} = require("firebase-functions");
 const {defineSecret} = require("firebase-functions/params");
@@ -65,6 +66,7 @@ const {
 } = require("./admin_product_utils");
 const {
   isInvalidRegistrationError,
+  notificationItemLabel,
   notificationForRefundStatus,
   notificationForStatus,
 } = require("./notification_utils");
@@ -139,10 +141,11 @@ exports.sendOrderStatusNotification = onDocumentUpdated(
     const {orderId, userId} = event.params;
     const statusChanged = before.status !== after.status;
     const refundStatusChanged = before.refundStatus !== after.refundStatus;
+    const itemLabel = notificationItemLabel(after.items);
     const notification = statusChanged ?
-      notificationForStatus(after.status, orderId) :
+      notificationForStatus(after.status, itemLabel) :
       refundStatusChanged ?
-        notificationForRefundStatus(after.refundStatus, orderId) : null;
+        notificationForRefundStatus(after.refundStatus, itemLabel) : null;
     if (notification == null) return;
     const notificationStatus = statusChanged ?
       after.status : after.refundStatus;
@@ -242,12 +245,7 @@ exports.sendOrderStatusNotification = onDocumentUpdated(
 exports.submitProductReview = onCall(
   {region: "us-central1", invoker: "public"},
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to review a product.",
-      );
-    }
+    requireVerifiedCustomer(request.auth);
 
     let review;
     try {
@@ -287,15 +285,52 @@ async function requireAdmin(auth) {
   }
 }
 
-exports.deleteProductReview = onCall(
+function requireVerifiedCustomer(auth) {
+  if (!auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "You must be signed in to continue.",
+    );
+  }
+
+  if (auth.token.email_verified !== true) {
+    throw new HttpsError(
+      "permission-denied",
+      "Verify your email address before continuing.",
+    );
+  }
+}
+
+exports.deleteAccount = onCall(
   {region: "us-central1", invoker: "public"},
   async (request) => {
     if (!request.auth) {
       throw new HttpsError(
         "unauthenticated",
-        "You must be signed in to delete a review.",
+        "You must be signed in to delete your account.",
       );
     }
+
+    const userId = request.auth.uid;
+    try {
+      await db.recursiveDelete(db.collection("users").doc(userId));
+      await getAuth().deleteUser(userId);
+      logger.info("Deleted customer account", {userId});
+      return {deleted: true};
+    } catch (error) {
+      logger.error("Could not delete customer account", {error, userId});
+      throw new HttpsError(
+        "internal",
+        "Could not delete the account. Please try again.",
+      );
+    }
+  },
+);
+
+exports.deleteProductReview = onCall(
+  {region: "us-central1", invoker: "public"},
+  async (request) => {
+    requireVerifiedCustomer(request.auth);
 
     let review;
     try {
@@ -318,12 +353,7 @@ exports.deleteProductReview = onCall(
 exports.placeOrder = onCall(
   {region: "us-central1", invoker: "public"},
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to place an order.",
-      );
-    }
+    requireVerifiedCustomer(request.auth);
 
     let checkout;
     try {
@@ -364,12 +394,7 @@ exports.cancelOrder = onCall(
     secrets: [razorpayKeyId, razorpayKeySecret],
   },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to cancel an order.",
-      );
-    }
+    requireVerifiedCustomer(request.auth);
 
     let input;
     try {
@@ -481,12 +506,7 @@ exports.refreshOrderRefund = onCall(
     secrets: [razorpayKeyId, razorpayKeySecret],
   },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to refresh a refund.",
-      );
-    }
+    requireVerifiedCustomer(request.auth);
 
     let input;
     try {
@@ -543,12 +563,7 @@ exports.refreshOrderRefund = onCall(
 exports.resolvePayment = onCall(
   {region: "us-central1", invoker: "public"},
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to resolve a payment.",
-      );
-    }
+    requireVerifiedCustomer(request.auth);
 
     let payment;
     try {
@@ -577,12 +592,7 @@ exports.createRazorpayOrder = onCall(
     secrets: [razorpayKeyId, razorpayKeySecret],
   },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to start payment.",
-      );
-    }
+    requireVerifiedCustomer(request.auth);
 
     let payment;
     try {
@@ -707,12 +717,7 @@ exports.verifyRazorpayPayment = onCall(
     secrets: [razorpayKeySecret],
   },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError(
-        "unauthenticated",
-        "You must be signed in to verify payment.",
-      );
-    }
+    requireVerifiedCustomer(request.auth);
 
     let payment;
     try {

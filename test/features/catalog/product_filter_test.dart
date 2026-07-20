@@ -29,12 +29,36 @@ void main() {
     test('clear restores the full catalog', () {
       final filter = ProductFilter()
         ..setQuery('watch')
-        ..setCategory(ProductCategory.wearable);
+        ..setCategory(ProductCategory.wearable)
+        ..setSort(ProductSort.priceHighToLow);
 
       filter.clear();
 
       expect(filter.hasActiveFilters, isFalse);
+      expect(filter.sort, ProductSort.featured);
       expect(filter.applyTo(_products), _products);
+    });
+
+    test('sorts filtered products by price and rating', () {
+      final filter = ProductFilter();
+
+      filter.setSort(ProductSort.priceLowToHigh);
+      expect(filter.applyTo(_products).map((product) => product.id), [
+        'p1',
+        'p2',
+      ]);
+
+      filter.setSort(ProductSort.priceHighToLow);
+      expect(filter.applyTo(_products).map((product) => product.id), [
+        'p2',
+        'p1',
+      ]);
+
+      filter.setSort(ProductSort.highestRated);
+      expect(filter.applyTo(_products).map((product) => product.id), [
+        'p1',
+        'p2',
+      ]);
     });
   });
 }

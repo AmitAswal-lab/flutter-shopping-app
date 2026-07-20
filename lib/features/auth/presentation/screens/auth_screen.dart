@@ -207,6 +207,13 @@ class _AuthFormState extends State<_AuthForm> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ],
+          if (auth.successMessage != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              auth.successMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+            ),
+          ],
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: auth.isBusy ? null : _submit,
@@ -233,8 +240,26 @@ class _AuthFormState extends State<_AuthForm> {
                   : 'New here? Create an account',
             ),
           ),
+          if (!_isCreatingAccount)
+            TextButton(
+              onPressed: auth.isBusy ? null : _sendPasswordResetEmail,
+              child: const Text('Forgot password?'),
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _sendPasswordResetEmail() async {
+    final email = _emailController.text.trim();
+    final error = _validateEmail(email);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your email address first.')),
+      );
+      return;
+    }
+
+    await context.read<AuthController>().sendPasswordResetEmail(email);
   }
 }
