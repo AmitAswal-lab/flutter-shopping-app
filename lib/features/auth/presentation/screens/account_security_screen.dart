@@ -353,7 +353,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'This permanently deletes your profile, delivery addresses, cart, wishlist, and order history from the app.',
+              'This permanently removes your profile, delivery addresses, cart, wishlist, and reviews. Completed transaction records are retained without your personal details. Active orders and refunds must finish first.',
             ),
             const SizedBox(height: 16),
             TextField(

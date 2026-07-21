@@ -211,6 +211,11 @@ The Firestore security and checkout-concurrency test commands, trust
 boundaries, and remaining production risks are documented in the
 [Security and Testing Report](docs/security_and_testing.md).
 
+Account deletion removes customer-owned personal data and reviews. Completed
+order and refund records are retained with personal fields removed so payment,
+refund, and fulfillment records remain auditable. Accounts with active orders
+or unfinished refunds cannot be deleted.
+
 ## Firebase Setup
 
 Firebase email/password authentication is wired in the app.

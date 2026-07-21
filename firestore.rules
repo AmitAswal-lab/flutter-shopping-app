@@ -2,10 +2,18 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function userAccountIsActive(userId) {
+      let userPath = /databases/$(database)/documents/users/$(userId);
+      return !exists(userPath)
+        || (!get(userPath).data.keys().hasAny(['accountDeletionPending'])
+          && !get(userPath).data.keys().hasAny(['accountDeleted']));
+    }
+
     function ownsUserData(userId) {
       return request.auth != null
         && request.auth.uid == userId
-        && request.auth.token.email_verified == true;
+        && request.auth.token.email_verified == true
+        && userAccountIsActive(userId);
     }
 
     function isSignedIn() {

@@ -82,6 +82,23 @@ test("concurrent reviews produce one consistent aggregate", async () => {
   );
 });
 
+test("review submission stops when account deletion has started", async () => {
+  await seedProduct({rating: 0, reviewCount: 0});
+  await db.doc("users/alice").set({
+    accountDeletionPending: true,
+    displayName: "alice",
+  });
+
+  await assert.rejects(
+    submit("alice", 5, "Excellent product."),
+    (error) => error.code === "permission-denied",
+  );
+
+  const product = (await db.doc("products/p1").get()).data();
+  assert.equal(product.reviewCount, 0);
+  assert.equal((await db.collection("products/p1/reviews").get()).size, 0);
+});
+
 async function seedProduct({rating, reviewCount}) {
   await db.doc("products/p1").set({
     isActive: true,

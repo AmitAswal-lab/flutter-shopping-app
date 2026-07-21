@@ -61,6 +61,10 @@ const {
 } = require("./review_utils");
 const {removeReview, upsertReview} = require("./review_transaction");
 const {
+  deleteCustomerFirestoreData,
+  isRecentAuthentication,
+} = require("./account_deletion");
+const {
   AdminProductInputError,
   parseAdminProductRequest,
 } = require("./admin_product_utils");
@@ -312,12 +316,20 @@ exports.deleteAccount = onCall(
     }
 
     const userId = request.auth.uid;
+    if (!isRecentAuthentication(request.auth.token.auth_time)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Sign in again before deleting your account.",
+      );
+    }
+
     try {
-      await db.recursiveDelete(db.collection("users").doc(userId));
+      const cleanup = await deleteCustomerFirestoreData({db, userId});
       await getAuth().deleteUser(userId);
-      logger.info("Deleted customer account", {userId});
+      logger.info("Deleted customer account", {userId, ...cleanup});
       return {deleted: true};
     } catch (error) {
+      if (error instanceof HttpsError) throw error;
       logger.error("Could not delete customer account", {error, userId});
       throw new HttpsError(
         "internal",

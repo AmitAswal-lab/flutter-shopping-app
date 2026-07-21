@@ -162,6 +162,7 @@ class AuthController extends ChangeNotifier {
       password: currentPassword,
     );
     await user.reauthenticateWithCredential(credential);
+    await user.getIdToken(true);
   }
 
   void clearError() {

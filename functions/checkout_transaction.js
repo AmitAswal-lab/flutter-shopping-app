@@ -134,6 +134,12 @@ async function reserveCheckout({
     }
 
     const profile = userSnapshot.exists ? userSnapshot.data() : {};
+    if (profile.accountDeletionPending || profile.accountDeleted) {
+      throw new HttpsError(
+        "permission-denied",
+        "This account is being deleted.",
+      );
+    }
     const fullName =
       typeof profile.fullName === "string" ? profile.fullName.trim() : "";
     const displayName =

@@ -87,6 +87,29 @@ test("concurrent buyers cannot reserve the same final stock unit", async () => {
   assert.equal(aliceOrders.size + bobOrders.size, 1);
 });
 
+test("checkout stops when account deletion has started", async () => {
+  await seedUserCart("alice", "p1", 1);
+  await seedProduct("p1", 2);
+  await db.doc("users/alice").set(
+    {accountDeletionPending: true},
+    {merge: true},
+  );
+
+  await assert.rejects(
+    reserveCheckout({
+      authEmail: "alice@example.com",
+      checkout: checkoutInput("checkout_deleted", "p1"),
+      db,
+      paymentReservationMinutes: 15,
+      userId: "alice",
+    }),
+    (error) => error.code === "permission-denied",
+  );
+
+  assert.equal((await db.doc("products/p1").get()).data().stockCount, 2);
+  assert.equal((await db.collection("users/alice/orders").get()).size, 0);
+});
+
 function checkoutInput(checkoutId, productId) {
   return {
     checkoutId,

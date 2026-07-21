@@ -40,6 +40,12 @@ async function upsertReview({
     }
 
     const profile = userSnapshot.exists ? userSnapshot.data() : {};
+    if (profile.accountDeletionPending || profile.accountDeleted) {
+      throw new HttpsError(
+        "permission-denied",
+        "This account is being deleted.",
+      );
+    }
     const profileName =
       typeof profile.displayName === "string" ?
         profile.displayName.trim() :
