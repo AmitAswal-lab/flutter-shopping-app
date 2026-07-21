@@ -37,7 +37,7 @@ const {
 const {reconcileRazorpayWebhook} = require("./webhook_reconciliation");
 const {
   OrderFulfillmentInputError,
-  nextLifecycleTransition,
+  nextVerifiedLifecycleTransition,
   parseOrderFulfillmentRequest,
 } = require("./order_lifecycle_utils");
 const {reserveCheckout} = require("./checkout_transaction");
@@ -959,14 +959,14 @@ exports.advanceOrderFulfillment = onCall(
       }
 
       const order = snapshot.data();
-      if (!nextLifecycleTransition(order.status)) {
+      const transition = nextVerifiedLifecycleTransition(order);
+      if (!transition) {
         throw new HttpsError(
           "failed-precondition",
-          "This order cannot advance to the next fulfillment stage.",
+          "This order cannot advance. Verify its payment evidence and current status.",
         );
       }
 
-      const transition = nextLifecycleTransition(order.status);
       const updates = {
         [transition.timestampField]: FieldValue.serverTimestamp(),
         fulfillmentUpdatedBy: request.auth.uid,

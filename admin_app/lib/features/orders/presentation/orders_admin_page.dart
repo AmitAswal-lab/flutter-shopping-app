@@ -75,7 +75,7 @@ class _OrdersAdminPageState extends State<OrdersAdminPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Move paid orders through preparation, shipping, and delivery.',
+                      'Verify payment evidence, then move orders through preparation, shipping, and delivery.',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     const SizedBox(height: 24),
@@ -84,7 +84,7 @@ class _OrdersAdminPageState extends State<OrdersAdminPage> {
                         ButtonSegment(
                           value: 'queue',
                           icon: Icon(Icons.pending_actions_outlined),
-                          label: Text('To fulfill'),
+                          label: Text('Active queue'),
                         ),
                         ButtonSegment(
                           value: 'delivered',
@@ -94,7 +94,7 @@ class _OrdersAdminPageState extends State<OrdersAdminPage> {
                         ButtonSegment(
                           value: 'all',
                           icon: Icon(Icons.list_alt_outlined),
-                          label: Text('All paid orders'),
+                          label: Text('All orders'),
                         ),
                       ],
                       selected: {_filter},
@@ -129,7 +129,7 @@ class _OrdersAdminPageState extends State<OrdersAdminPage> {
                 child: CenteredMessage(
                   icon: Icons.inbox_outlined,
                   title: _filter == 'queue'
-                      ? 'No orders waiting for fulfillment'
+                      ? 'No active orders'
                       : 'No orders found',
                 ),
               )
@@ -251,6 +251,31 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
   var _isSubmitting = false;
   String? _error;
 
+  Future<void> _confirmAdvance() async {
+    final message = widget.order.fulfillmentConfirmation;
+    final action = widget.order.nextFulfillmentAction;
+    if (message == null || action == null || _isSubmitting) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (confirmationContext) => AlertDialog(
+        title: Text('$action?'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(confirmationContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(confirmationContext, true),
+            child: const Text('Confirm update'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _advance();
+  }
+
   Future<void> _advance() async {
     if (_isSubmitting) return;
 
@@ -360,7 +385,7 @@ class _OrderDetailDialogState extends State<_OrderDetailDialog> {
         ),
         if (nextAction != null)
           FilledButton.icon(
-            onPressed: _isSubmitting ? null : _advance,
+            onPressed: _isSubmitting ? null : _confirmAdvance,
             icon: _isSubmitting
                 ? const SizedBox.square(
                     dimension: 18,
@@ -417,7 +442,8 @@ class _FulfillmentResult {
 }
 
 String _statusLabel(String status) => switch (status) {
-  'paid' || 'confirmed' => 'Paid',
+  'paid' => 'Paid',
+  'confirmed' => 'Payment check needed',
   'processing' => 'Preparing',
   'shipped' => 'Shipped',
   'delivered' => 'Delivered',
@@ -426,14 +452,15 @@ String _statusLabel(String status) => switch (status) {
 };
 
 String _nextStatusLabel(String status) => switch (status) {
-  'paid' || 'confirmed' => 'Preparing',
+  'paid' => 'Preparing',
   'processing' => 'Shipped',
   'shipped' => 'Delivered',
   _ => 'the next fulfillment stage',
 };
 
 IconData _statusIcon(String status) => switch (status) {
-  'paid' || 'confirmed' => Icons.payments_outlined,
+  'paid' => Icons.payments_outlined,
+  'confirmed' => Icons.warning_amber_outlined,
   'processing' => Icons.inventory_2_outlined,
   'shipped' => Icons.local_shipping_outlined,
   'delivered' => Icons.check_circle_outline,

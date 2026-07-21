@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const {
   OrderFulfillmentInputError,
   nextLifecycleTransition,
+  nextVerifiedLifecycleTransition,
   parseOrderFulfillmentRequest,
 } = require("../order_lifecycle_utils");
 
@@ -37,6 +38,7 @@ test("returns ordered lifecycle transitions", () => {
     status: "processing",
     timestampField: "processingAt",
   });
+  assert.equal(nextLifecycleTransition("confirmed"), null);
   assert.deepEqual(nextLifecycleTransition("processing"), {
     status: "shipped",
     timestampField: "shippedAt",
@@ -46,4 +48,22 @@ test("returns ordered lifecycle transitions", () => {
     timestampField: "deliveredAt",
   });
   assert.equal(nextLifecycleTransition("delivered"), null);
+});
+
+test("requires Razorpay capture evidence before fulfillment starts", () => {
+  assert.equal(
+    nextVerifiedLifecycleTransition({
+      paymentMethod: "razorpay",
+      status: "paid",
+    }),
+    null,
+  );
+  assert.deepEqual(
+    nextVerifiedLifecycleTransition({
+      paymentMethod: "razorpay",
+      razorpayPaymentId: "pay_123",
+      status: "paid",
+    }),
+    {status: "processing", timestampField: "processingAt"},
+  );
 });

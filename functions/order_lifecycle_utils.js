@@ -2,7 +2,6 @@
 
 const LIFECYCLE_TRANSITIONS = new Map([
   ["paid", {status: "processing", timestampField: "processingAt"}],
-  ["confirmed", {status: "processing", timestampField: "processingAt"}],
   ["processing", {status: "shipped", timestampField: "shippedAt"}],
   ["shipped", {status: "delivered", timestampField: "deliveredAt"}],
 ]);
@@ -37,8 +36,25 @@ function nextLifecycleTransition(status) {
   return LIFECYCLE_TRANSITIONS.get(status) || null;
 }
 
+function nextVerifiedLifecycleTransition(order) {
+  if (order === null || typeof order !== "object" || Array.isArray(order)) {
+    return null;
+  }
+  if (
+    order.status === "paid" &&
+    (order.paymentMethod === "razorpay" ||
+      order.paymentProvider === "razorpay") &&
+    (typeof order.razorpayPaymentId !== "string" ||
+      order.razorpayPaymentId.trim().length === 0)
+  ) {
+    return null;
+  }
+  return nextLifecycleTransition(order.status);
+}
+
 module.exports = {
   OrderFulfillmentInputError,
   nextLifecycleTransition,
+  nextVerifiedLifecycleTransition,
   parseOrderFulfillmentRequest,
 };

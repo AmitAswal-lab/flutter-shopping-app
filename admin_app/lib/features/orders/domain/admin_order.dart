@@ -34,17 +34,49 @@ class AdminOrder {
   int get itemCount =>
       items.fold(0, (itemTotal, item) => itemTotal + item.quantity);
 
-  String get paymentLabel {
-    if (paymentProvider == 'razorpay' || paymentMethod == 'razorpay') {
-      return 'Razorpay payment captured';
-    }
-    return paymentMethod.isEmpty ? 'Payment captured' : paymentMethod;
-  }
+  bool get _usesRazorpay =>
+      paymentProvider == 'razorpay' || paymentMethod == 'razorpay';
+
+  bool get _hasCaptureReference =>
+      razorpayPaymentId?.trim().isNotEmpty ?? false;
+
+  String get paymentLabel => switch (status) {
+    'pendingPayment' => 'Payment pending',
+    'paymentFailed' => 'Payment failed',
+    'expired' => 'Payment reservation expired',
+    'confirmed' => 'Payment verification required',
+    'paid' || 'processing' || 'shipped' || 'delivered'
+        when _usesRazorpay && !_hasCaptureReference =>
+      'Razorpay capture reference missing',
+    'paid' ||
+    'processing' ||
+    'shipped' ||
+    'delivered' when _usesRazorpay => 'Razorpay payment captured',
+    'paid' ||
+    'processing' ||
+    'shipped' ||
+    'delivered' => 'Payment recorded as captured',
+    'cancelled' when _hasCaptureReference =>
+      'Captured payment — check refund status',
+    'cancelled' => 'No captured payment recorded',
+    _ => 'Payment status unknown',
+  };
 
   String? get nextFulfillmentAction => switch (status) {
-    'paid' || 'confirmed' => 'Start preparing order',
+    'paid' when !_usesRazorpay || _hasCaptureReference =>
+      'Start preparing order',
     'processing' => 'Mark as shipped',
     'shipped' => 'Mark as delivered',
+    _ => null,
+  };
+
+  String? get fulfillmentConfirmation => switch (status) {
+    'paid' =>
+      'This records the order as Preparing. Confirm that preparation has actually started.',
+    'processing' =>
+      'This records the order as Shipped. Confirm that the package has been handed to the carrier.',
+    'shipped' =>
+      'This records the order as Delivered. Confirm that delivery has been verified; this cannot be undone here.',
     _ => null,
   };
 
