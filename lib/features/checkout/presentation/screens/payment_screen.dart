@@ -128,38 +128,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
   void _onPaymentError(PaymentFailureResponse response) {
     if (!mounted) return;
 
+    setState(() => _isResolving = false);
     if (response.code == Razorpay.PAYMENT_CANCELLED) {
-      setState(() => _isResolving = false);
       _showMessage('Payment was closed. Your reservation is still active.');
       return;
     }
 
-    unawaited(_resolveFailedPayment(response.message));
-  }
-
-  Future<void> _resolveFailedPayment(String? gatewayMessage) async {
-    final navigator = Navigator.of(context);
-    setState(() => _isResolving = true);
-
-    try {
-      final result = await context.read<PaymentService>().resolve(
-        orderId: widget.orderId,
-        outcome: PaymentOutcome.paymentFailed,
-      );
-      if (!mounted) return;
-
-      navigator.pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => PaymentResultScreen(status: result.status),
-        ),
-        (route) => route.isFirst,
-      );
-    } on PaymentFailure catch (error) {
-      if (!mounted) return;
-
-      setState(() => _isResolving = false);
-      _showMessage(gatewayMessage ?? error.message);
-    }
+    final gatewayMessage = response.message?.trim();
+    _showMessage(
+      gatewayMessage == null || gatewayMessage.isEmpty
+          ? 'Payment was not completed. We will confirm the final status with '
+                'Razorpay before releasing your reservation.'
+          : '$gatewayMessage We will confirm the final status with Razorpay '
+                'before releasing your reservation.',
+    );
   }
 
   void _onExternalWallet(ExternalWalletResponse response) {

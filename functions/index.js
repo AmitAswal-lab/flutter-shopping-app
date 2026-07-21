@@ -793,7 +793,7 @@ exports.razorpayWebhook = onRequest(
   {
     region: "us-central1",
     invoker: "public",
-    secrets: [razorpayWebhookSecret],
+    secrets: [razorpayKeyId, razorpayKeySecret, razorpayWebhookSecret],
   },
   async (request, response) => {
     if (request.method !== "POST") {
@@ -833,6 +833,7 @@ exports.razorpayWebhook = onRequest(
         db,
         event,
         eventId: webhookEventId(rawBody),
+        razorpay: createRazorpayClient(),
       });
       logger.info("Razorpay webhook reconciled.", {
         action: result.action,

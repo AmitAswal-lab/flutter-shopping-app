@@ -2,11 +2,20 @@
 
 const {FieldValue} = require("firebase-admin/firestore");
 
+const {
+  finalizeOrderCancellation,
+} = require("./order_cancellation_transaction");
+const {createOrRecoverRefund} = require("./razorpay_refund_service");
 const {applyRefundStatus} = require("./refund_tracking");
 
 const PENDING_PAYMENT = "pendingPayment";
+const RELEASED_UNPAID_STATUSES = new Set([
+  "cancelled",
+  "expired",
+  "paymentFailed",
+]);
 
-async function reconcileRazorpayWebhook({db, event, eventId}) {
+async function reconcileRazorpayWebhook({db, event, eventId, razorpay}) {
   const eventRef = db.collection("razorpayWebhookEvents").doc(eventId);
   const shouldProcess = await registerWebhookEvent({event, eventRef});
   if (!shouldProcess) {
@@ -14,7 +23,7 @@ async function reconcileRazorpayWebhook({db, event, eventId}) {
   }
 
   try {
-    const result = await reconcileEvent({db, event});
+    const result = await reconcileEvent({db, event, razorpay});
     await eventRef.set({
       action: result.action,
       completedAt: FieldValue.serverTimestamp(),
@@ -63,10 +72,10 @@ async function registerWebhookEvent({event, eventRef}) {
   });
 }
 
-async function reconcileEvent({db, event}) {
+async function reconcileEvent({db, event, razorpay}) {
   switch (event.kind) {
     case "paymentCaptured":
-      return reconcileCapturedPayment({db, event});
+      return reconcileCapturedPayment({db, event, razorpay});
     case "paymentFailed":
       return reconcileFailedPayment({db, event});
     case "refund":
@@ -76,14 +85,14 @@ async function reconcileEvent({db, event}) {
   }
 }
 
-async function reconcileCapturedPayment({db, event}) {
+async function reconcileCapturedPayment({db, event, razorpay}) {
   const orderRef = await orderReferenceForRazorpayOrder({
     db,
     razorpayOrderId: event.razorpayOrderId,
   });
   if (orderRef == null) return {action: "unmatchedPayment"};
 
-  return db.runTransaction(async (transaction) => {
+  const result = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(orderRef);
     if (!snapshot.exists) return {action: "unmatchedPayment"};
 
@@ -119,8 +128,96 @@ async function reconcileCapturedPayment({db, event}) {
       return {action: "paymentAlreadyCaptured", orderPath: orderRef.path};
     }
 
+    const lateRefund = latePaymentRefundClaim({event, order});
+    if (lateRefund != null) {
+      if (lateRefund.isNew) {
+        transaction.update(orderRef, {
+          cancellationPreviousStatus: lateRefund.previousStatus,
+          cancellationProcessingStartedAt: FieldValue.serverTimestamp(),
+          cancellationProcessingToken: lateRefund.processingToken,
+          cancellationReason: "latePaymentCaptured",
+          cancellationRequestedAt: FieldValue.serverTimestamp(),
+          cancellationRequestedBy: "system",
+          paidAt: FieldValue.serverTimestamp(),
+          paymentCapturedAt: FieldValue.serverTimestamp(),
+          paymentProvider: "razorpay",
+          razorpayPaymentId: event.razorpayPaymentId,
+          razorpayPaymentStatus: "captured",
+          refundStatus: "initiating",
+          status: "cancellationPending",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {
+        action: "latePaymentRefundRequired",
+        amount: order.totalPriceCents,
+        orderId: orderRef.id,
+        orderPath: orderRef.path,
+        paymentId: event.razorpayPaymentId,
+        processingToken: lateRefund.processingToken,
+        userId: orderRef.parent.parent.id,
+      };
+    }
+
     return {action: "paymentIgnoredForOrderStatus", orderPath: orderRef.path};
   });
+
+  if (result.action !== "latePaymentRefundRequired") return result;
+  if (razorpay == null) {
+    throw new Error("Razorpay is required to refund a late captured payment.");
+  }
+
+  const refund = await createOrRecoverRefund({
+    amount: result.amount,
+    orderId: result.orderId,
+    paymentId: result.paymentId,
+    processingToken: result.processingToken,
+    razorpay,
+    userId: result.userId,
+  });
+  await finalizeOrderCancellation({
+    db,
+    orderRef: db.doc(result.orderPath),
+    processingToken: result.processingToken,
+    refund,
+    userId: result.userId,
+  });
+
+  return {
+    action: `latePaymentRefund${capitalize(refund.status)}`,
+    orderPath: result.orderPath,
+  };
+}
+
+function latePaymentRefundClaim({event, order}) {
+  const processingToken = order.cancellationProcessingToken;
+  const resumesLateRefund =
+    order.status === "cancellationPending" &&
+    order.cancellationReason === "latePaymentCaptured" &&
+    order.razorpayPaymentId === event.razorpayPaymentId &&
+    typeof processingToken === "string" &&
+    processingToken.length > 0;
+  if (resumesLateRefund) {
+    return {
+      isNew: false,
+      previousStatus: order.cancellationPreviousStatus,
+      processingToken,
+    };
+  }
+
+  const isReleasedUnpaidOrder =
+    RELEASED_UNPAID_STATUSES.has(order.status) &&
+    order.stockRestored === true &&
+    order.paidAt == null &&
+    !order.razorpayPaymentId;
+  if (!isReleasedUnpaidOrder) return null;
+
+  return {
+    isNew: true,
+    previousStatus: order.status,
+    processingToken: `late-payment-${event.razorpayPaymentId}`,
+  };
 }
 
 async function reconcileFailedPayment({db, event}) {
@@ -198,5 +295,6 @@ function capitalize(value) {
 
 module.exports = {
   invalidPaymentMatch,
+  latePaymentRefundClaim,
   reconcileRazorpayWebhook,
 };

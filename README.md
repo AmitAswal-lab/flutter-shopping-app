@@ -59,7 +59,13 @@ Current state-management decisions:
 - The `placeOrder` Cloud Function atomically validates stock, reserves inventory, creates a `pendingPayment` order, and clears purchased cart items.
 - Razorpay orders are created on the backend with credentials stored in Firebase Secret Manager.
 - The `verifyRazorpayPayment` Cloud Function verifies Razorpay's HMAC signature before changing an order to paid.
-- The `resolvePayment` Cloud Function handles failed or cancelled payments and restores reserved stock.
+- Client payment-error callbacks remain provisional until Razorpay confirms the
+  final outcome; they no longer release inventory on their own.
+- The `resolvePayment` Cloud Function handles explicit customer cancellation
+  and restores reserved stock.
+- If Razorpay captures a payment after its inventory reservation was already
+  released, the webhook reconciliation flow starts an idempotent full refund
+  instead of silently ignoring the charge.
 - A scheduled function expires abandoned payment reservations and restores their stock.
 - Checkout refreshes the catalog from the Firestore server and validates every cart quantity before creating an order.
 - Wishlist stores product IDs instead of full product objects so product details still come from the catalog.
