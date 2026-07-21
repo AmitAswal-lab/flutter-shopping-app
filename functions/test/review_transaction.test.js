@@ -99,6 +99,24 @@ test("review submission stops when account deletion has started", async () => {
   assert.equal((await db.collection("products/p1/reviews").get()).size, 0);
 });
 
+test("reviews never use the authentication email as a public name", async () => {
+  await seedProduct({rating: 0, reviewCount: 0});
+  await db.doc("users/alice").set({});
+
+  await upsertReview({
+    authEmail: "alice@example.com",
+    comment: "Excellent product.",
+    db,
+    productId: "p1",
+    rating: 5,
+    userId: "alice",
+  });
+
+  const review = (await db.doc("products/p1/reviews/alice").get()).data();
+  assert.equal(review.displayName, "Shopper");
+  assert.equal(JSON.stringify(review).includes("alice@example.com"), false);
+});
+
 async function seedProduct({rating, reviewCount}) {
   await db.doc("products/p1").set({
     isActive: true,
@@ -114,7 +132,6 @@ async function seedUser(userId) {
 
 async function submit(userId, rating, comment) {
   return upsertReview({
-    authEmail: `${userId}@example.com`,
     comment,
     db,
     productId: "p1",

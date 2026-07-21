@@ -5,7 +5,6 @@ const {HttpsError} = require("firebase-functions/v2/https");
 const {updatedAggregate} = require("./review_utils");
 
 async function upsertReview({
-  authEmail,
   comment,
   db,
   productId,
@@ -52,8 +51,7 @@ async function upsertReview({
         "";
     const fullName =
       typeof profile.fullName === "string" ? profile.fullName.trim() : "";
-    const email = typeof authEmail === "string" ? authEmail : "";
-    const displayName = profileName || fullName || email || "Shopper";
+    const displayName = profileName || fullName || "Shopper";
     const aggregate = updatedAggregate({
       product: productSnapshot.data(),
       previousRating: previousRating ?? null,

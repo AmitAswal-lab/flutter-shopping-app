@@ -70,6 +70,7 @@ The emulator suite verifies:
 - cart quantities and document/product IDs are validated;
 - customers cannot write orders or products;
 - customers cannot directly write reviews or product rating aggregates;
+- public reviews never use the authentication email as a display-name fallback;
 - unauthenticated users cannot read products;
 - repeated checkout IDs do not reserve stock twice;
 - two concurrent buyers cannot reserve the same final stock unit.

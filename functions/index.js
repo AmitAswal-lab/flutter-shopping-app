@@ -262,7 +262,6 @@ exports.submitProductReview = onCall(
     }
 
     return upsertReview({
-      authEmail: request.auth.token.email,
       comment: review.comment,
       db,
       productId: review.productId,
