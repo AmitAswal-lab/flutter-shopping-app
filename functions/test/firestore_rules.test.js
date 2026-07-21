@@ -43,8 +43,8 @@ test.after(async () => {
 });
 
 test("users can read and update only their valid profile", async () => {
-  const alice = environment.authenticatedContext("alice").firestore();
-  const bob = environment.authenticatedContext("bob").firestore();
+  const alice = verifiedFirestore("alice");
+  const bob = verifiedFirestore("bob");
   const profile = doc(alice, "users/alice");
 
   await assertSucceeds(
@@ -61,8 +61,8 @@ test("users can read and update only their valid profile", async () => {
 });
 
 test("cart items enforce ownership, identity, and quantity shape", async () => {
-  const alice = environment.authenticatedContext("alice").firestore();
-  const bob = environment.authenticatedContext("bob").firestore();
+  const alice = verifiedFirestore("alice");
+  const bob = verifiedFirestore("bob");
   const cartItem = doc(alice, "users/alice/cartItems/p1");
 
   await assertSucceeds(
@@ -99,8 +99,8 @@ test("cart items enforce ownership, identity, and quantity shape", async () => {
 });
 
 test("wishlist entries enforce owner and matching product ID", async () => {
-  const alice = environment.authenticatedContext("alice").firestore();
-  const bob = environment.authenticatedContext("bob").firestore();
+  const alice = verifiedFirestore("alice");
+  const bob = verifiedFirestore("bob");
   const wishlistItem = doc(alice, "users/alice/wishlistItems/p1");
 
   await assertSucceeds(
@@ -120,8 +120,8 @@ test("wishlist entries enforce owner and matching product ID", async () => {
 });
 
 test("delivery addresses are private and validate their saved shape", async () => {
-  const alice = environment.authenticatedContext("alice").firestore();
-  const bob = environment.authenticatedContext("bob").firestore();
+  const alice = verifiedFirestore("alice");
+  const bob = verifiedFirestore("bob");
   const address = doc(alice, "users/alice/deliveryAddresses/home");
 
   await assertSucceeds(
@@ -150,11 +150,9 @@ test("orders are readable by their owner or an administrator and backend-write-o
     });
   });
 
-  const alice = environment.authenticatedContext("alice").firestore();
-  const bob = environment.authenticatedContext("bob").firestore();
-  const admin = environment
-    .authenticatedContext("catalog-admin")
-    .firestore();
+  const alice = verifiedFirestore("alice");
+  const bob = verifiedFirestore("bob");
+  const admin = verifiedFirestore("catalog-admin");
   const order = doc(alice, "users/alice/orders/order_123");
 
   await assertSucceeds(getDoc(order));
@@ -171,8 +169,8 @@ test("orders are readable by their owner or an administrator and backend-write-o
 });
 
 test("device registrations enforce ownership and immutable creation time", async () => {
-  const alice = environment.authenticatedContext("alice").firestore();
-  const bob = environment.authenticatedContext("bob").firestore();
+  const alice = verifiedFirestore("alice");
+  const bob = verifiedFirestore("bob");
   const registration = doc(alice, "users/alice/deviceRegistrations/device_1");
 
   await assertSucceeds(
@@ -216,7 +214,7 @@ test("products are authenticated-readable and backend-write-only", async () => {
     });
   });
 
-  const alice = environment.authenticatedContext("alice").firestore();
+  const alice = verifiedFirestore("alice");
   const anonymous = environment.unauthenticatedContext().firestore();
   const product = doc(alice, "products/p1");
 
@@ -232,8 +230,8 @@ test("users can check only their own administrator record", async () => {
     });
   });
 
-  const alice = environment.authenticatedContext("alice").firestore();
-  const bob = environment.authenticatedContext("bob").firestore();
+  const alice = verifiedFirestore("alice");
+  const bob = verifiedFirestore("bob");
 
   await assertSucceeds(getDoc(doc(alice, "admins/alice")));
   await assertFails(getDoc(doc(bob, "admins/alice")));
@@ -249,7 +247,7 @@ test("reviews are authenticated-readable and backend-write-only", async () => {
     });
   });
 
-  const alice = environment.authenticatedContext("alice").firestore();
+  const alice = verifiedFirestore("alice");
   const anonymous = environment.unauthenticatedContext().firestore();
   const review = doc(alice, "products/p1/reviews/alice");
 
@@ -258,3 +256,32 @@ test("reviews are authenticated-readable and backend-write-only", async () => {
   await assertFails(updateDoc(review, { rating: 1 }));
   await assertFails(deleteDoc(review));
 });
+
+test("unverified users cannot access customer-owned data", async () => {
+  const unverified = environment.authenticatedContext("alice", {
+    email_verified: false,
+  }).firestore();
+
+  await assertFails(
+    setDoc(doc(unverified, "users/alice"), {
+      displayName: "Alice",
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(getDoc(doc(unverified, "users/alice")));
+  await assertFails(
+    setDoc(doc(unverified, "users/alice/cartItems/p1"), {
+      name: "Headphones",
+      priceCents: 7999,
+      productId: "p1",
+      quantity: 1,
+      updatedAt: serverTimestamp(),
+    }),
+  );
+});
+
+function verifiedFirestore(userId) {
+  return environment.authenticatedContext(userId, {
+    email_verified: true,
+  }).firestore();
+}
